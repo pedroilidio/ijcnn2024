@@ -32,6 +32,8 @@ rf_embedder = ForestEmbedder(
         random_state=RSTATE,
     ),
     method="all_nodes",
+    node_weights="neg_log_frac",
+    max_node_size=0.8,
 )
 
 xt_embedder = ForestEmbedder(
@@ -41,6 +43,8 @@ xt_embedder = ForestEmbedder(
         random_state=RSTATE,
     ),
     method="all_nodes",
+    node_weights="neg_log_frac",
+    max_node_size=0.8,
 )
 
 final_estimator = StackingClassifier(
@@ -103,8 +107,8 @@ weak_label_cascade_forest = Cascade(
 
 if __name__ == "__main__":
     X, y = load_iris(return_X_y=True)
-    cascade = cascade_forest.fit(X, y)
-    # cascade = weak_label_cascade_forest.fit(X, y)
+    # cascade = cascade_forest.fit(X, y)
+    cascade = weak_label_cascade_forest.fit(X, y)
 
     joblib.dump(cascade, "cascade.joblib")
     with open("cascade.html", "w") as f:

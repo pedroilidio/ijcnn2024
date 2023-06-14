@@ -151,10 +151,7 @@ class Cascade(Pipeline):
         if step_name == "final_estimator":
             return "Fitting final estimator"
         elif step_name == "sampler":
-            return (
-                f"(level {step_idx + 1} of {self.max_levels}) "
-                "Resampling data"
-            )
+            return f"(level {step_idx + 1} of {self.max_levels}) " "Resampling data"
         elif step_name == "level":
             return (
                 f"(level {step_idx + 1} of {self.max_levels}) "
@@ -272,21 +269,30 @@ class Cascade(Pipeline):
 
             X = self._combine_features(original_X, new_X)
             self.steps.insert(-1, (f"level{level_count}", fitted_transformer))
-
-            if self.inter_level_sampler is not None:
-                # Not strictly necessary, since samplers are stateless
-                sampler = clone(self.inter_level_sampler)
-
-                with _print_elapsed_time(
-                    self.__class__.__name__,
-                    self._log_message(level_count, "sampler"),
-                ):
-                    X, y = sampler.fit_resample(X, y, **fit_params["sampler"])
-
-                self.steps.insert(-1, (f"sampler{level_count}", sampler))
+            X, y = self._resample_data(X, y, **fit_params["sampler"])
 
             if self._stop_criterion(X, X_val, y, y_val):
                 break
+
+        return X, y
+
+    def _resample_data(self, X, y, **fit_params):
+        if self.inter_level_sampler is None:
+            return X, y
+
+        level_count = (len(self.steps) - 1) // 2
+
+        # Not strictly necessary, since samplers are stateless
+        sampler = clone(self.inter_level_sampler)
+
+        with _print_elapsed_time(
+            self.__class__.__name__,
+            self._log_message(level_count, "sampler"),
+        ):
+            X, y = sampler.fit_resample(X, y, **fit_params)
+
+        # Also not necessary, since samplers are stateless
+        self.steps.insert(-1, (f"sampler{level_count}", sampler))
 
         return X, y
 
