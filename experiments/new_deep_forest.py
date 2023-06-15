@@ -47,6 +47,7 @@ xt_embedder = ForestEmbedder(
     max_node_size=0.8,
 )
 
+# BaggingClassifier is an alternative
 final_estimator = StackingClassifier(
     estimators=[
         (
@@ -87,7 +88,7 @@ weak_label_imputer = WeakLabelImputer(final_estimator, threshold=0.8)
 cascade_forest = Cascade(
     level=level_estimator,
     final_estimator=final_estimator,
-    # scorer="neg_mean_squared_error",
+    # scoring="neg_mean_squared_error",
     # stopping_score=-0.0001,
     # min_improvement=0.00001,
     max_levels=10,
@@ -99,16 +100,40 @@ weak_label_cascade_forest = Cascade(
     level=level_estimator,
     inter_level_sampler=weak_label_imputer,
     final_estimator=final_estimator,
-    max_levels=10,
+    max_levels=5,
     verbose=True,
     random_state=RSTATE,
     memory=None,
+    scoring="neg_mean_squared_error",
+    refit=True,
+)
+
+cascade_forest3 = Cascade(
+    level=[
+        ("xt_embedder", Pipeline([
+            ("xt", xt_embedder),
+            ("pca", PCA(n_components=0.8, random_state=RSTATE)),
+        ])),
+        ("rf_embedder", Pipeline([
+            ("rf", rf_embedder),
+            ("pca", PCA(n_components=0.8, random_state=RSTATE)),
+        ])),
+    ],
+    final_estimator=final_estimator,
+    scoring="neg_mean_squared_error",
+    min_improvement=0,
+    # min_score=-0.0001,
+    # min_improvement=0.00001,
+    max_levels=3,
+    verbose=True,
+    random_state=RSTATE,
 )
 
 if __name__ == "__main__":
     X, y = load_iris(return_X_y=True)
     # cascade = cascade_forest.fit(X, y)
-    cascade = weak_label_cascade_forest.fit(X, y)
+    # cascade = weak_label_cascade_forest.fit(X, y)
+    cascade = cascade_forest3.fit(X, y)
 
     joblib.dump(cascade, "cascade.joblib")
     with open("cascade.html", "w") as f:

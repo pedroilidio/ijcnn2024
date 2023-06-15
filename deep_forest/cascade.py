@@ -8,7 +8,7 @@ from sklearn.base import (
     clone,
 )
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import check_scoring
+from sklearn.metrics import check_scoring, get_scorer_names
 from sklearn.utils import check_random_state
 from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
 from sklearn.utils.metaestimators import available_if
@@ -17,6 +17,7 @@ from sklearn.pipeline import (
     _final_estimator_has,
     _print_elapsed_time,
 )
+from sklearn.compose import ColumnTransformer
 from imblearn.pipeline import Pipeline, _fit_resample_one
 
 
@@ -25,6 +26,7 @@ class Cascade(Pipeline):
         "level": [
             HasMethods(["fit", "transform"]),
             HasMethods(["fit_transform", "transform"]),
+            list,
             # HasMethods(["fit_resample"]),  # TODO: Decide.
         ],
         "final_estimator": [
@@ -35,10 +37,12 @@ class Cascade(Pipeline):
         "memory": [None, str, HasMethods(["cache"])],
         "verbose": ["boolean"],
         "max_levels": [Interval(Integral, 1, None, closed="left")],
-        "scorer": [None, callable, str],  # Can be 'passthrough'
-        "stopping_score": [Real],
-        "min_improvement": [Interval(Real, 0, None, closed="both")],
-        "min_relative_improvement": [Interval(Real, 0, 1, closed="both")],
+        "min_levels": [Interval(Integral, 0, None, closed="left")],
+        "scoring": [None, callable, StrOptions(set(get_scorer_names()))],
+        "min_score": [Real],
+        "min_improvement": [None, Interval(Real, None, None, closed="both")],
+        "min_relative_improvement": [None, Interval(Real, None, None, closed="both")],
+        "max_unimproving_levels": [None, Interval(Integral, 0, None, closed="left")],
         "keep_original_features": ["boolean"],
         "validation_size": [
             Interval(Integral, 0, None, closed="left"),
@@ -56,13 +60,17 @@ class Cascade(Pipeline):
         memory=None,
         verbose=False,
         max_levels=10,
-        scorer=None,
-        stopping_score=0.0,
-        min_improvement=np.inf,
-        min_relative_improvement=1.0,
+        min_levels=1,
+        scoring=None,
+        min_score=0.0,
+        min_improvement=None,
+        min_relative_improvement=None,
+        max_unimproving_levels=None,
         keep_original_features=True,
         validation_size=0.2,
         inter_level_sampler=None,
+        trim_to_best_score=True,
+        refit=True,
         random_state=None,
     ):
         self.final_estimator = final_estimator
@@ -70,55 +78,100 @@ class Cascade(Pipeline):
         self.memory = memory
         self.verbose = verbose
         self.max_levels = max_levels
-        self.scorer = scorer
-        self.stopping_score = stopping_score
+        self.min_levels = min_levels
+        self.scoring = scoring
+        self.min_score = min_score
         self.min_improvement = min_improvement
         self.min_relative_improvement = min_relative_improvement
+        self.max_unimproving_levels = max_unimproving_levels
         self.keep_original_features = keep_original_features
-        self.validation_size = validation_size  # TODO: use validation set
+        self.validation_size = validation_size
         self.inter_level_sampler = inter_level_sampler
+        self.trim_to_best_score = trim_to_best_score
+        self.refit = refit
         self.random_state = random_state
 
     def _combine_features(self, original_X, new_X):
         if self.keep_original_features:
-            return np.hstack((original_X, new_X))
+            return np.hstack((new_X, original_X))
         return new_X
 
+    def _validate_params(self):
+        super()._validate_params()
+        if self.min_levels > self.max_levels:
+            raise ValueError(
+                f"{self.min_levels=} must be less than or equal to {self.max_levels=}"
+            )
+
     def _validate_scorer(self):
-        if self.scorer is not None:
-            self.scorer_ = check_scoring(
-                self.final_estimator,
-                scoring=self.scorer,
+        # Validate scoring stopping criterion
+        if self.min_improvement is None:
+            self.min_improvement_ = -np.inf
+        else:
+            self.min_improvement_ = self.min_improvement
+        
+        if self.min_relative_improvement is None:
+            self.min_relative_improvement_ = -np.inf
+        else:
+            self.min_relative_improvement_ = self.min_relative_improvement
+        
+        if self.max_unimproving_levels is None:
+            self.max_unimproving_levels_ = np.inf
+        else:
+            self.max_unimproving_levels_ = self.max_unimproving_levels
+
+        self.scorer_ = check_scoring(
+            self.final_estimator,
+            scoring=self.scoring,
+            allow_none=True,
+        )
+        if self.scorer_ is None and self.trim_to_best_score:
+            raise ValueError(
+                "trim_to_best_score=True requires a 'self.scoring' to be set."
             )
 
     def _stop_criterion(self, X, X_val, y, y_val):
-        if self.scorer is None:
+        """Return True if the cascade should stop training."""
+        # TODO: OOB scores to avoid validation set
+        if self.scorer_ is None:
             return False
 
-        self._final_estimator.fit(X, y)
+        estimator = clone(self.final_estimator).fit(X, y)
         X_val = self._apply_transformers(X_val)
-        score = self.scorer_(self._final_estimator, X_val, y_val)
+        score = self.scorer_(estimator, X_val, y_val)
 
-        sign = self.scorer_._sign
-        stop = sign * (self.stopping_score - score) >= 0
+        if self.trim_to_best_score:
+            # Store the score for each level
+            if not hasattr(self, 'level_scores_'):
+                self.level_scores_ = []
+            self.level_scores_.append(score)
 
         # If this is the first score, we can't compare it to the previous one
         if not hasattr(self, "_last_score"):
             self._last_score = score
             print(f"First score: {score:.4f}")
-            return stop
+            return score > self.min_score
 
-        delta = sign * (self._last_score - score)
-        relative_delta = delta / self._last_score
+        delta = score - self._last_score
+        relative_delta = delta / np.abs(self._last_score)
 
-        stop = (
-            stop
-            or delta < self.min_improvement
-            or relative_delta < self.min_relative_improvement
+        improved = (
+            delta >= self.min_improvement_
+            or relative_delta >= self.min_relative_improvement_
+        )
+        if improved or not hasattr(self, "_n_unimproving_levels"):
+            self._n_unimproving_levels = 0
+        if not improved:
+            self._n_unimproving_levels += 1
+
+        stop = self.n_levels_ >= self.min_levels and (
+            score > self.min_score
+            or self._n_unimproving_levels > self.max_unimproving_levels_
         )
         print(
-            f"{score=:.4f} {self._last_score=:.4f} {delta=:.4f}"
-            f" {relative_delta=:.4f}"
+            f"Score: {score:.4f} Delta: {delta:.4f}"
+            f" Relative delta: {relative_delta:.4f}"
+            f" Unimproving levels: {self._n_unimproving_levels}"
         )
 
         self._last_score = score
@@ -164,8 +217,33 @@ class Cascade(Pipeline):
         pass
 
     def _validate_steps(self):
-        """Skip step validation, since _validate_params() is enough."""
-        pass
+        """Complement _validate_params in the case where self.level is a list."""
+        if isinstance(self.level, list):
+            for name_transformer in self.level:
+                if (
+                    not isinstance(name_transformer, tuple)
+                    or len(name_transformer) != 2
+                    or not isinstance(name_transformer[0], str)
+                ):
+                    raise TypeError(
+                        "self.level should be either a transformer or a list of"
+                        " tuples in the format (transformer_name, transformer)."
+                        f" Got {name_transformer} instead."
+                    )
+
+                transformer = name_transformer[1]
+
+                if (
+                    not hasattr(transformer, "transform")
+                    or (
+                        not hasattr(transformer, "fit")
+                        and not hasattr(transformer, "fit_transform")
+                    )
+                ):
+                    raise TypeError(
+                        "If self.level is a list, all the transformers must implement"
+                        " transform and either fit or fit_transform."
+                    )
 
     def fit(self, X, y=None, **fit_params):
         """Fit the model.
@@ -198,16 +276,22 @@ class Cascade(Pipeline):
         self._validate_params()
         fit_params_steps = self._check_fit_params(**fit_params)
         Xt, yt = self._fit(X, y, **fit_params_steps)
+
+        if self.refit:
+            print("Refitting...")
+            Xt, yt = self._fit(X, y, final_fit=True, **fit_params_steps)
+
         with _print_elapsed_time(
             self.__class__.__name__,
             self._log_message(None, "final_estimator"),
         ):
             if self._final_estimator != "passthrough":
-                fit_params_last_step = fit_params_steps[self.steps[-1][0]]
+                fit_params_last_step = fit_params_steps["final_estimator"]
                 self._final_estimator.fit(Xt, yt, **fit_params_last_step)
+
         return self
 
-    def _fit(self, X, y=None, **fit_params):
+    def _fit(self, X, y=None, final_fit=False, **fit_params):
         self._validate_steps()
         self._validate_scorer()
 
@@ -220,7 +304,9 @@ class Cascade(Pipeline):
         fit_transform_one_cached = memory.cache(_fit_transform_one)
         fit_resample_one_cached = memory.cache(_fit_resample_one)
 
-        if self.scorer is not None:
+        if final_fit or self.scoring is None:
+            X_val, y_val = None, None
+        else:
             self.random_state_ = check_random_state(self.random_state)
             X, X_val, y, y_val = train_test_split(
                 X,
@@ -228,18 +314,46 @@ class Cascade(Pipeline):
                 test_size=self.validation_size,
                 random_state=self.random_state_,
             )
-        else:
-            X_val, y_val = None, None
 
+        max_levels = self.n_levels_ if final_fit else self.max_levels
         original_X = X
+
+        if isinstance(self.level, list):
+            # TODO: Make a transformer wrapper to do the column swapping,
+            # passing always a single trasnformer to self.level
+            # Update: Probably not possible, since every level must swap columns
+            base_level = ColumnTransformer(
+                [
+                    (name, transformer, slice(None))
+                    for name, transformer in self.level
+                ]
+            )
+            # No outputs exist from the last level
+            last_level_slices = {name: slice(0, 0) for name, _ in self.level}
+
+        else:
+            base_level = self.level
 
         # Initialize steps with the final estimator
         self.steps = [
-            ("final_estimator", clone(self.final_estimator)),
+            ("final_estimator_", clone(self.final_estimator)),
         ]
+        self.n_levels_ = 0
 
-        for level_count in range(self.max_levels):
-            cloned_transformer = clone(self.level)
+        for level_count in range(max_levels):
+            cloned_transformer = clone(base_level)
+
+            if isinstance(self.level, list):
+                # Make each transformer in the current level unaware of its own outputs
+                # of the last level.
+                new_transformers = []
+                for i, item in enumerate(cloned_transformer.transformers):
+                    name, transformer, old_slice = item
+                    new_slice = np.ones(X.shape[1], dtype=bool)
+                    new_slice[last_level_slices[name]] = False
+                    new_transformers.append((name, transformer, new_slice))
+
+                cloned_transformer.transformers = new_transformers
 
             # Fit or load from cache the current transformer
             if hasattr(cloned_transformer, "transform") or hasattr(
@@ -269,14 +383,45 @@ class Cascade(Pipeline):
 
             X = self._combine_features(original_X, new_X)
             self.steps.insert(-1, (f"level{level_count}", fitted_transformer))
+            # TODO: inter-level steps, mutliple steps
             X, y = self._resample_data(X, y, **fit_params["sampler"])
 
-            if self._stop_criterion(X, X_val, y, y_val):
+            # TODO: make as property
+            self.n_levels_ = level_count + 1
+
+            if not final_fit and self._stop_criterion(X, X_val, y, y_val):
                 break
 
+            if isinstance(self.level, list):
+                last_level_slices = fitted_transformer.output_indices_
+
+        if not final_fit:
+            self._trim_levels()
+
         return X, y
+    
+    def _trim_levels(self):
+        if not self.trim_to_best_score:
+            return
+
+        # TODO: Consider self.min_levels
+        # TODO: level_scores_[0] could be the case of no levels, only the final
+        # estimator.
+        self.n_levels_ = np.argmax(self.level_scores_) + 1
+        self.trim_index_ = self.n_levels_
+        if self.inter_level_sampler is None:
+            self.trim_index_ *= 2
+
+        self.steps[self.trim_index_ + 1:-1] = []
+
+        if self.verbose:
+            print(
+                f"Trimmed to {self.n_levels_} levels."
+                f" Level scores: {self.level_scores_}"
+            )
 
     def _resample_data(self, X, y, **fit_params):
+        # TODO: cache
         if self.inter_level_sampler is None:
             return X, y
 
@@ -291,7 +436,7 @@ class Cascade(Pipeline):
         ):
             X, y = sampler.fit_resample(X, y, **fit_params)
 
-        # Also not necessary, since samplers are stateless
+        # To enable easy refit and visulization of the cascade
         self.steps.insert(-1, (f"sampler{level_count}", sampler))
 
         return X, y
