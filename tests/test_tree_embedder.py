@@ -1,5 +1,6 @@
-import numpy as np
 import pytest
+import numpy as np
+import scipy.sparse
 from sklearn.tree import ExtraTreeClassifier, DecisionTreeClassifier
 from sklearn.ensemble import ExtraTreesClassifier
 from deep_forest.tree_embedder import (
@@ -28,49 +29,81 @@ def fitted_clf(random_state, data):
     return clf.fit(*data)
 
 
-def test_embed_with_tree_path(fitted_clf, data):
+def test_embed_with_path(fitted_clf, data):
     Xt = embed_with_tree(fitted_clf, data[0], method="path")
-    assert Xt.shape == (data[0].shape[0], fitted_clf.max_depth)
-    assert set(np.unique(Xt)) == {0, 1}
+    assert isinstance(Xt, scipy.sparse.csr_matrix)
+    n_internal_nodes = fitted_clf.tree_.node_count - fitted_clf.tree_.n_leaves
+    assert Xt.shape == (data[0].shape[0], n_internal_nodes)
+    # Assert is binary (sparse matrix)
+    assert set(Xt.data) == {1}
+    assert Xt.sum(axis=1).max() <= fitted_clf.tree_.max_depth
 
 
-@pytest.mark.parametrize(
-    "node_weights",
-    [None, "neg_log_frac", "log_node_size"],
-)
-def test_embed_with_tree_node_weights(fitted_clf, data, node_weights):
+def test_embed_with_path_node_weights(fitted_clf, data):
     Xt = embed_with_tree(
         fitted_clf,
         data[0],
-        method="all_nodes",
+        method="path",
+        node_weights=lambda x: x,  # Assing node weight equal to node size
+    )
+    tree = fitted_clf.tree_
+    # Selects data corresponding to internal nodes, excluding leaves
+    mask = tree.children_left != tree.children_right
+    manual_result = (
+        tree.decision_path(data[0].astype('float32')).toarray()
+        * tree.weighted_n_node_samples
+    )[:, mask]
+    assert isinstance(Xt, scipy.sparse.csr_matrix)
+    assert np.all(Xt == manual_result)
+
+
+def test_embed_with_dense_path(fitted_clf, data):
+    Xt = embed_with_tree(fitted_clf, data[0], method="dense_path")
+    assert Xt.shape == (data[0].shape[0], fitted_clf.tree_.max_depth)
+    assert set(np.unique(Xt)) == {0, 1}
+
+
+@pytest.mark.parametrize("node_weights", [None, "neg_log_frac", "log_node_size"])
+@pytest.mark.parametrize("method", ["all_nodes", "path"])
+def test_embed_with_tree_node_weights(fitted_clf, data, node_weights, method):
+    Xt = embed_with_tree(
+        fitted_clf,
+        data[0],
+        method=method,
         node_weights=node_weights,
     )
     n_internal_nodes = fitted_clf.tree_.node_count - fitted_clf.tree_.n_leaves
     assert Xt.shape == (data[0].shape[0], n_internal_nodes)
     if node_weights is None:
-        assert set(np.unique(Xt)) == {0, 1}
+        if isinstance(Xt, scipy.sparse.csr_matrix):
+            assert set(Xt.data) == {1}
+        else:  # np.ndarray
+            assert set(np.unique(Xt)) == {0, 1}
 
 
 @pytest.mark.parametrize("max_node_size", [0.5, 0.7, 70])
-def test_embed_with_tree_max_node_size(fitted_clf, data, max_node_size):
+@pytest.mark.parametrize("method", ["all_nodes", "path"])
+def test_embed_with_tree_max_node_size(fitted_clf, data, max_node_size, method):
     Xt = embed_with_tree(
         fitted_clf,
         data[0],
-        method="all_nodes",
+        method=method,
         max_node_size=max_node_size,
         node_weights=lambda x: x,  # Set the output to the node size
     )
     if isinstance(max_node_size, float):
         max_node_size = np.ceil(max_node_size * data[0].shape[0])
 
-    assert np.all(Xt <= max_node_size)  # Outputs are the node sizes
-
     internal_node_size = fitted_clf.tree_.n_node_samples[
         fitted_clf.tree_.children_left != fitted_clf.tree_.children_right
     ]
     n_outputs = np.sum(internal_node_size <= max_node_size)
-
     assert Xt.shape == (data[0].shape[0], n_outputs)
+
+    if isinstance(Xt, scipy.sparse.csr_matrix):
+        Xt = Xt.toarray()
+    assert np.all(Xt <= max_node_size)  # Outputs are the node sizes
+
 
 
 @pytest.mark.parametrize(
@@ -78,9 +111,12 @@ def test_embed_with_tree_max_node_size(fitted_clf, data, max_node_size):
     [
         TreeEmbedder(ExtraTreeClassifier()),
         ForestEmbedder(ExtraTreesClassifier(n_estimators=10)),
+        ForestEmbedder(ExtraTreesClassifier(n_estimators=10)),
     ],
 )
-def test_embedder_classes(data, embedder):
+@pytest.mark.parametrize("method", ["all_nodes", "path", "dense_path"])
+def test_embedder_classes(data, embedder, method):
     X, y = data
+    embedder.set_params(method=method)
     embedder.fit(X, y)
     embedder.transform(X)

@@ -1,6 +1,7 @@
 from numbers import Integral, Real
 import joblib
 import numpy as np
+from scipy import sparse
 from sklearn.base import (
     TransformerMixin,
     BaseEstimator,
@@ -10,6 +11,7 @@ from sklearn.base import (
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import check_scoring, get_scorer_names
 from sklearn.utils import check_random_state
+from sklearn.utils._tags import _safe_tags
 from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
 from sklearn.utils.metaestimators import available_if
 from sklearn.pipeline import (
@@ -39,7 +41,7 @@ class Cascade(Pipeline):
         "max_levels": [Interval(Integral, 1, None, closed="left")],
         "min_levels": [Interval(Integral, 0, None, closed="left")],
         "scoring": [None, callable, StrOptions(set(get_scorer_names()))],
-        "min_score": [Real],
+        "min_score": [Interval(Real, 0, None, closed="left")],
         "min_improvement": [None, Interval(Real, None, None, closed="both")],
         "min_relative_improvement": [None, Interval(Real, None, None, closed="both")],
         "max_unimproving_levels": [None, Interval(Integral, 0, None, closed="left")],
@@ -69,7 +71,7 @@ class Cascade(Pipeline):
         keep_original_features=True,
         validation_size=0.2,
         inter_level_sampler=None,
-        trim_to_best_score=True,
+        trim_to_best_score=False,
         refit=True,
         random_state=None,
     ):
@@ -90,18 +92,60 @@ class Cascade(Pipeline):
         self.trim_to_best_score = trim_to_best_score
         self.refit = refit
         self.random_state = random_state
+        # FIXME: steps must exist for _more_tags() to work
+        self.steps = [
+            ("final_estimator_", clone(self.final_estimator)),
+        ]
+
+    def _more_tags(self):
+        return {"pairwise": _safe_tags(self.final_estimator, "pairwise")}
 
     def _combine_features(self, original_X, new_X):
         if self.keep_original_features:
-            return np.hstack((new_X, original_X))
+            Xs = [original_X, new_X]
+            if any(sparse.issparse(f) for f in Xs):
+                return sparse.hstack(Xs).tocsr()
+            return np.hstack(Xs)
         return new_X
 
-    def _validate_params(self):
-        super()._validate_params()
+    def _validate_stop_criteria(self):
         if self.min_levels > self.max_levels:
             raise ValueError(
                 f"{self.min_levels=} must be less than or equal to {self.max_levels=}"
             )
+
+        self.stop_criteria_are_set_ = (
+            self.min_score > 0.0
+            or self.min_improvement is not None
+            or self.min_relative_improvement is not None
+        )
+        self.collect_scores_ = self.stop_criteria_are_set_ or self.trim_to_best_score
+
+        if not self.collect_scores_ and self.scoring is not None:
+            raise ValueError(
+                f"self.scoring other than None (received {self.scoring}) requires"
+                " at least one of 'min_score', 'min_improvement',"
+                " or 'min_relative_improvement' parameters to be set or"
+                " 'trim_to_best_score' to be True. Otherwise, there is no"
+                " use for the scoring function and it must be set to None."
+            )
+        if self.collect_scores_ and self.scorer_ is None:
+            raise ValueError(
+                (
+                    (
+                        "self.min_score, self.min_improvement, and/or"
+                        " self.min_relative_improvement are set,"
+                    )
+                    if self.stop_criteria_are_set_
+                    else (f"{self.trim_to_best_score=}")
+                )
+                + (
+                    f" but no scoring function was provided ({self.scoring=}).)"
+                    ' One can set scoring="passthrough" to use the'
+                    " final estimator's score method."
+                )
+            )
+        # TODO: check validation_size
 
     def _validate_scorer(self):
         # Validate scoring stopping criterion
@@ -109,12 +153,12 @@ class Cascade(Pipeline):
             self.min_improvement_ = -np.inf
         else:
             self.min_improvement_ = self.min_improvement
-        
+
         if self.min_relative_improvement is None:
             self.min_relative_improvement_ = -np.inf
         else:
             self.min_relative_improvement_ = self.min_relative_improvement
-        
+
         if self.max_unimproving_levels is None:
             self.max_unimproving_levels_ = np.inf
         else:
@@ -133,7 +177,8 @@ class Cascade(Pipeline):
     def _stop_criterion(self, X, X_val, y, y_val):
         """Return True if the cascade should stop training."""
         # TODO: OOB scores to avoid validation set
-        if self.scorer_ is None:
+        # if self.scorer_ is None:
+        if not self.collect_scores_:
             return False
 
         estimator = clone(self.final_estimator).fit(X, y)
@@ -142,15 +187,18 @@ class Cascade(Pipeline):
 
         if self.trim_to_best_score:
             # Store the score for each level
-            if not hasattr(self, 'level_scores_'):
+            if not hasattr(self, "level_scores_"):
                 self.level_scores_ = []
             self.level_scores_.append(score)
+
+        if not self.stop_criteria_are_set_:
+            return False
 
         # If this is the first score, we can't compare it to the previous one
         if not hasattr(self, "_last_score"):
             self._last_score = score
             print(f"First score: {score:.4f}")
-            return score > self.min_score
+            return np.abs(score) > self.min_score
 
         delta = score - self._last_score
         relative_delta = delta / np.abs(self._last_score)
@@ -165,7 +213,7 @@ class Cascade(Pipeline):
             self._n_unimproving_levels += 1
 
         stop = self.n_levels_ >= self.min_levels and (
-            score > self.min_score
+            np.abs(score) > self.min_score
             or self._n_unimproving_levels > self.max_unimproving_levels_
         )
         print(
@@ -233,12 +281,9 @@ class Cascade(Pipeline):
 
                 transformer = name_transformer[1]
 
-                if (
-                    not hasattr(transformer, "transform")
-                    or (
-                        not hasattr(transformer, "fit")
-                        and not hasattr(transformer, "fit_transform")
-                    )
+                if not hasattr(transformer, "transform") or (
+                    not hasattr(transformer, "fit")
+                    and not hasattr(transformer, "fit_transform")
                 ):
                     raise TypeError(
                         "If self.level is a list, all the transformers must implement"
@@ -274,10 +319,14 @@ class Cascade(Pipeline):
         """
         # We override this method only to correct log printing and docstring.
         self._validate_params()
+        self._validate_steps()
+        self._validate_scorer()
+        self._validate_stop_criteria()
+
         fit_params_steps = self._check_fit_params(**fit_params)
         Xt, yt = self._fit(X, y, **fit_params_steps)
 
-        if self.refit:
+        if self.refit and self.collect_scores_:
             print("Refitting...")
             Xt, yt = self._fit(X, y, final_fit=True, **fit_params_steps)
 
@@ -292,9 +341,6 @@ class Cascade(Pipeline):
         return self
 
     def _fit(self, X, y=None, final_fit=False, **fit_params):
-        self._validate_steps()
-        self._validate_scorer()
-
         # Setup the memory
         if self.memory is None or isinstance(self.memory, str):
             memory = joblib.Memory(location=self.memory, verbose=0)
@@ -304,7 +350,7 @@ class Cascade(Pipeline):
         fit_transform_one_cached = memory.cache(_fit_transform_one)
         fit_resample_one_cached = memory.cache(_fit_resample_one)
 
-        if final_fit or self.scoring is None:
+        if final_fit or not self.collect_scores_:
             X_val, y_val = None, None
         else:
             self.random_state_ = check_random_state(self.random_state)
@@ -323,10 +369,7 @@ class Cascade(Pipeline):
             # passing always a single trasnformer to self.level
             # Update: Probably not possible, since every level must swap columns
             base_level = ColumnTransformer(
-                [
-                    (name, transformer, slice(None))
-                    for name, transformer in self.level
-                ]
+                [(name, transformer, slice(None)) for name, transformer in self.level]
             )
             # No outputs exist from the last level
             last_level_slices = {name: slice(0, 0) for name, _ in self.level}
@@ -389,7 +432,7 @@ class Cascade(Pipeline):
             # TODO: make as property
             self.n_levels_ = level_count + 1
 
-            if not final_fit and self._stop_criterion(X, X_val, y, y_val):
+            if self._stop_criterion(X, X_val, y, y_val):
                 break
 
             if isinstance(self.level, list):
@@ -399,7 +442,7 @@ class Cascade(Pipeline):
             self._trim_levels()
 
         return X, y
-    
+
     def _trim_levels(self):
         if not self.trim_to_best_score:
             return
@@ -412,7 +455,7 @@ class Cascade(Pipeline):
         if self.inter_level_sampler is None:
             self.trim_index_ *= 2
 
-        self.steps[self.trim_index_ + 1:-1] = []
+        self.steps[self.trim_index_ + 1 : -1] = []
 
         if self.verbose:
             print(

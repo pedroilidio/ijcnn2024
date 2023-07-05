@@ -1,5 +1,6 @@
 from numbers import Real, Integral
 import numpy as np
+import scipy.sparse
 from sklearn.base import (
     BaseEstimator,
     TransformerMixin,
@@ -22,7 +23,7 @@ __all__ = [
 ]
 
 _COMMON_PARAMS = {
-    "method": [StrOptions({"all_nodes", "path"})],
+    "method": [StrOptions({"all_nodes", "path", "dense_path"})],
     "node_weights": [
         StrOptions({"neg_log_frac", "log_node_size", "norm_log_node_size"}),
         callable,
@@ -33,6 +34,12 @@ _COMMON_PARAMS = {
         Interval(Integral, 1, None, closed="left"),
     ],
 }
+
+
+def _hstack(Xs):
+    if any(scipy.sparse.issparse(f) for f in Xs):
+        return scipy.sparse.hstack(Xs).tocsr()
+    return np.hstack(Xs)
 
 
 @validate_params(
@@ -69,10 +76,10 @@ def _get_node_weights(node_size, node_weights):
 def embed_with_tree(
     tree_estimator,
     X,
-    method="all_nodes",
+    method="path",
     node_weights=None,
     max_node_size=1.0,
-):
+) -> np.ndarray | scipy.sparse.csr_matrix:
     """Use a decision tree to create data representations.
 
     Parameters
@@ -81,12 +88,21 @@ def embed_with_tree(
         The decision tree estimator used to embed the data.
     X : array-like
         The input data to embed.
-    method : str, optional (default="all_nodes")
+    method : str, optional (default="path")
         The embedding method to use. Valid options are "all_nodes" and "path".
-        - "all_nodes": Binary output indicating whether the sample passes the
-          test of each internal node, optionally weighted by the node's size.
-        - "path": Binary output indicating whether the sample takes the left (0)
-          or right (1) path on each level of the tree.
+        - "path": Binary output indicating whether the sample passed through
+          each node of the tree. Yields a sparse matrix with one feature per
+          node (shape=(n_samples, n_nodes)).
+        - "dense_path": Binary output indicating whether the sample takes the
+          left (0) or right (1) path on each level of the tree. Yields one
+          feature per level (shape=(n_samples, n_levels)).
+        - "all_nodes": Binary output indicating whether the sample passes each
+          test, for all internal nodes (shape=(n_samples, n_nodes)).
+        
+        .. note::
+
+            The "all_nodes" method requires considerable memory for large trees.
+
     node_weights : str, callable, or None, optional (default=None)
         The method used to weight the nodes. Valid options are:
         - "log_node_size": The node weights are proportional to the inverse
@@ -106,29 +122,37 @@ def embed_with_tree(
 
     Returns
     -------
-    Xt : array-like
-        The embedded data. If method="all_nodes", the columns correspond to the
-        internal nodes of the tree, excluding the leaves. If method="path", the
-        columns correspond to the direction (0=left, 1=right) took on each tree
-        level on the path from the root to the leaf.
+    Xt : np.ndarray or scipy.sparse.csr_matrix
+        The embedded data. See the description of the `method` parameter for
+        details.
     """
     tree = tree_estimator.tree_
     if tree.max_depth <= 1:
         raise ValueError(
-            "The tree has a single node. " "It cannot be used to embed the data."
+            "The tree has a single node. It cannot be used to embed the data."
         )
 
-    if method == "all_nodes":
+    if method in ("path", "all_nodes"):
         # Selects data corresponding to internal nodes, excluding leaves
         mask = tree.children_left != tree.children_right
         node_size = tree.weighted_n_node_samples[mask]
 
-        # The data is encoded as binary values indicating whether the sample
-        # passes the test of each internal node
-        Xt = (X[:, tree.feature[mask]] > tree.threshold[mask]).astype(DTYPE)
+        if method == "path":
+            # The data is encoded as binary values indicating whether the sample
+            # passes through each node
+            Xt = tree_estimator.decision_path(X)[:, mask]
+            if node_weights is not None:
+                # TODO: Scipy is switching to array interface, so that the
+                # following will be valid for both method options in the future:
+                # Xt *= _get_node_weights(node_size, node_weights)
+                Xt = Xt.multiply(_get_node_weights(node_size, node_weights)).tocsr()
+        else:  # method == "all_nodes"
+            # The data is encoded as binary values indicating whether the sample
+            # passes the test of each internal node
+            Xt = (X[:, tree.feature[mask]] > tree.threshold[mask]).astype(DTYPE)
+            if node_weights is not None:
+                Xt *= _get_node_weights(node_size, node_weights)
 
-        if node_weights is not None:
-            Xt *= _get_node_weights(node_size, node_weights)
         if isinstance(max_node_size, float):
             # node_size[0] is the size of the root node
             max_node_size = np.ceil(max_node_size * node_size[0])
@@ -136,10 +160,10 @@ def embed_with_tree(
         Xt = Xt[:, node_size <= max_node_size]
         return Xt
 
-    if method == "path":
+    if method == "dense_path":
         if node_weights is not None:
             raise ValueError(
-                "'node_weights' is not supported for method='path'.",
+                f"'node_weights' is not supported for {method=}.",
             )
         Xt = np.zeros((X.shape[0], tree.max_depth), dtype=DTYPE)
         path = tree_estimator.decision_path(X).toarray().astype(bool)
@@ -208,7 +232,7 @@ class ForestEmbedder(BaseTreeEmbedder):
 
     def transform(self, X):
         check_is_fitted(self)
-        return np.hstack(
+        return _hstack(
             [
                 embed_with_tree(
                     tree,
