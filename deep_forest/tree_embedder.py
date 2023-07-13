@@ -1,6 +1,7 @@
 from numbers import Real, Integral
 import numpy as np
 import scipy.sparse
+import scipy.stats
 from sklearn.base import (
     BaseEstimator,
     TransformerMixin,
@@ -36,9 +37,46 @@ _COMMON_PARAMS = {
 }
 
 
+def _chi2_per_node(tree):
+    """Calculate the chi2 statistic for each node in the tree."""
+
+    # Total number of negatives, total number of positives
+    # shape=(n_labels, n_classes)
+    margin_row = tree.value[0]  # Class counts at the root node
+    total = tree.weighted_n_node_samples[0]
+
+    # N samples in the node, N samples outside the node
+    # shape=(n_nodes, n_groups)
+    # n_groups = 2, for inside/outside the node
+    margin_col = np.stack([
+        tree.weighted_n_node_samples,
+        total - tree.weighted_n_node_samples,
+    ]).T
+
+    # Expected values under the null hypothesis
+    # (1, n_labels, 1, n_classes) * (n_nodes, 1, n_groups, 1) =
+    #       = (n_nodes, n_labels, n_groups, n_classes)
+    expected = (margin_row[None, :, None, :] * margin_col[:, None, :, None]) / total
+
+    # shape=(n_nodes, n_labels, n_groups, n_classes)
+    contingency_tables = np.stack(
+        [
+            tree.value,  # shape=(n_nodes, n_labels, n_classes)
+            margin_row - tree.value,  # same shape
+        ],
+        axis=-2,  # so that classes is the last axis
+    )
+
+    chi2 = (contingency_tables - expected) ** 2 / expected
+    chi2 = chi2.sum(axis=(-1, -2))  # sum over classes and groups
+
+    # chi2.shape = (n_nodes, n_labels)
+    return chi2
+
+
 def _hstack(Xs):
     if any(scipy.sparse.issparse(f) for f in Xs):
-        return scipy.sparse.hstack(Xs).tocsr()
+        return scipy.sparse.hstack(Xs, format='csr')
     return np.hstack(Xs)
 
 
@@ -78,6 +116,7 @@ def embed_with_tree(
     X,
     method="path",
     node_weights=None,
+    max_pvalue=1.0,
     max_node_size=1.0,
 ) -> np.ndarray | scipy.sparse.csr_matrix:
     """Use a decision tree to create data representations.
@@ -127,40 +166,39 @@ def embed_with_tree(
         details.
     """
     tree = tree_estimator.tree_
+
     if tree.max_depth <= 1:
         raise ValueError(
             "The tree has a single node. It cannot be used to embed the data."
         )
+    if method != "dense_path":  # TODO: move to fit
+        chi2 = _chi2_per_node(tree)  # shape=(n_nodes, n_labels)
+        chi2 = chi2.max(axis=1)  # take maximum chi2 among labels, shape=(n_nodes,)
+        threshold = chi2.ppf(max_pvalue)
+        mask = chi2 > threshold
 
-    if method in ("path", "all_nodes"):
-        # Selects data corresponding to internal nodes, excluding leaves
-        mask = tree.children_left != tree.children_right
-        node_size = tree.weighted_n_node_samples[mask]
-
-        if method == "path":
-            # The data is encoded as binary values indicating whether the sample
-            # passes through each node
-            Xt = tree_estimator.decision_path(X)[:, mask]
-            if node_weights is not None:
-                # TODO: Scipy is switching to array interface, so that the
-                # following will be valid for both method options in the future:
-                # Xt *= _get_node_weights(node_size, node_weights)
-                Xt = Xt.multiply(_get_node_weights(node_size, node_weights)).tocsr()
-        else:  # method == "all_nodes"
-            # The data is encoded as binary values indicating whether the sample
-            # passes the test of each internal node
-            Xt = (X[:, tree.feature[mask]] > tree.threshold[mask]).astype(DTYPE)
-            if node_weights is not None:
-                Xt *= _get_node_weights(node_size, node_weights)
+        node_size = tree.weighted_n_node_samples
 
         if isinstance(max_node_size, float):
             # node_size[0] is the size of the root node
             max_node_size = np.ceil(max_node_size * node_size[0])
 
+
+    if method == "path":
+        # The data is encoded as binary values indicating whether the sample
+        # passes through each node
+        Xt = tree_estimator.decision_path(X)[mask]
+
+        if node_weights is not None:
+            # TODO: Scipy is switching to array interface, so that the
+            # following will be valid for both method options in the future:
+            # Xt *= _get_node_weights(node_size, node_weights)
+            Xt = Xt.multiply(_get_node_weights(node_size, node_weights)).tocsr()
+
         Xt = Xt[:, node_size <= max_node_size]
         return Xt
 
-    if method == "dense_path":
+    elif method == "dense_path":
         if node_weights is not None:
             raise ValueError(
                 f"'node_weights' is not supported for {method=}.",
@@ -173,6 +211,21 @@ def embed_with_tree(
             is_right_child = tree.children_right[mask][:-1] == node_idx[mask][1:]
             Xt[i, : len(is_right_child)] = is_right_child
 
+        return Xt
+
+    elif method == "all_nodes":
+        # Select data corresponding to internal nodes, excluding leaves
+        mask = tree.children_left != tree.children_right
+        node_size = tree.weighted_n_node_samples[mask]
+
+        # The data is encoded as binary values indicating whether the sample
+        # passes the test of each internal node
+        Xt = (X[:, tree.feature[mask]] > tree.threshold[mask]).astype(DTYPE)
+
+        if node_weights is not None:
+            Xt *= _get_node_weights(node_size, node_weights)
+
+        Xt = Xt[:, node_size <= max_node_size]
         return Xt
 
     raise ValueError
@@ -232,15 +285,15 @@ class ForestEmbedder(BaseTreeEmbedder):
 
     def transform(self, X):
         check_is_fitted(self)
-        return _hstack(
-            [
-                embed_with_tree(
-                    tree,
-                    X,
-                    method=self.method,
-                    node_weights=self.node_weights,
-                    max_node_size=self.max_node_size,
-                )
-                for tree in self.estimator_.estimators_
-            ]
+        # Convert to array of objects to avoid copying the data
+        embeddings_iter = (
+            embed_with_tree(
+                tree,
+                X,
+                method=self.method,
+                node_weights=self.node_weights,
+                max_node_size=self.max_node_size,
+            )
+            for tree in self.estimator_.estimators_
         )
+        return _hstack(np.fromiter(embeddings_iter, dtype='object'))

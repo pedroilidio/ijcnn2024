@@ -104,7 +104,7 @@ class Cascade(Pipeline):
         if self.keep_original_features:
             Xs = [original_X, new_X]
             if any(sparse.issparse(f) for f in Xs):
-                return sparse.hstack(Xs).tocsr()
+                return sparse.hstack(Xs, format="csr")
             return np.hstack(Xs)
         return new_X
 

@@ -25,14 +25,23 @@ class MultiOutputVotingClassifier(BaseEstimator, ClassifierMixin):
             estimator.predict_proba(X)
             for estimator in self.estimators_
         ]
-        probas = [np.mean(label_probas, axis=0) for label_probas in zip(*probas)]
-        return probas
+
+        if isinstance(probas[0], list):  # multilabel-indicator
+            new_probas = []
+            for label_probas in zip(*probas):
+                new_probas.append(np.mean(label_probas, axis=0))
+            return new_probas
+
+        return np.mean(probas, axis=0)
     
     def predict(self, X):
-        return np.hstack([
-            label_proba.argmax(axis=1).reshape(-1, 1)
-            for label_proba in self.predict_proba(X)
-        ])
+        probas = self.predict_proba(X)
+        if isinstance(probas, list):  # multilabel-indicator
+            return np.hstack([
+                label_proba.argmax(axis=1).reshape(-1, 1)
+                for label_proba in probas
+            ])
+        return probas.argmax(axis=1).reshape(-1, 1)
 
     def _more_tags(self):
         return {"multioutput": True}
