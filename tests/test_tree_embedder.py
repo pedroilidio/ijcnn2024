@@ -7,6 +7,7 @@ from deep_forest.tree_embedder import (
     embed_with_tree,
     TreeEmbedder,
     ForestEmbedder,
+    _chi2_per_node,
 )
 
 
@@ -120,3 +121,27 @@ def test_embedder_classes(data, embedder, method):
     embedder.set_params(method=method)
     embedder.fit(X, y)
     embedder.transform(X)
+
+
+def test_chi2(data):
+    embedder = TreeEmbedder(ExtraTreeClassifier()).fit(*data)
+    tree = embedder.estimator_.tree_
+    total_counts = tree.value[0]
+    
+    pvalues = []
+    for i, node in enumerate(tree.value[1:]):  # Skip the root node
+        label_contingency_tables = [
+            [counts, label_total_counts - counts] 
+            for counts, label_total_counts in zip(node, total_counts)
+        ]
+        label_pvalues = [
+            scipy.stats.chi2_contingency(table)[1]
+            #     if np.sum(table[0]) > 30
+            #     else scipy.stats.fisher_exact(table)[1]
+            for table in label_contingency_tables
+        ]
+        pvalues.append(min(label_pvalues))
+        print(i, pvalues[-1], end="\r")
+    print()
+
+    assert np.allclose(pvalues, _chi2_per_node(tree))

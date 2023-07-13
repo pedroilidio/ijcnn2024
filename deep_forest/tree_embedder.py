@@ -172,30 +172,34 @@ def embed_with_tree(
             "The tree has a single node. It cannot be used to embed the data."
         )
     if method != "dense_path":  # TODO: move to fit
-        chi2 = _chi2_per_node(tree)  # shape=(n_nodes, n_labels)
-        chi2 = chi2.max(axis=1)  # take maximum chi2 among labels, shape=(n_nodes,)
-        threshold = chi2.ppf(max_pvalue)
-        mask = chi2 > threshold
+        mask = np.ones(tree.node_count, dtype=bool)
+
+        if max_pvalue < 1.0:
+            chi2 = _chi2_per_node(tree)  # shape=(n_nodes, n_labels)
+            chi2 = chi2.max(axis=1)  # take maximum chi2 among labels, shape=(n_nodes,)
+            threshold = scipy.stats.chi2.ppf(max_pvalue, df=1)
+            mask &= chi2 > threshold
 
         node_size = tree.weighted_n_node_samples
 
         if isinstance(max_node_size, float):
             # node_size[0] is the size of the root node
             max_node_size = np.ceil(max_node_size * node_size[0])
-
+        
+        mask &= node_size <= max_node_size
+        weights = _get_node_weights(node_size[mask], node_weights)
 
     if method == "path":
         # The data is encoded as binary values indicating whether the sample
         # passes through each node
-        Xt = tree_estimator.decision_path(X)[mask]
+        Xt = tree_estimator.decision_path(X)[:, mask]
 
         if node_weights is not None:
             # TODO: Scipy is switching to array interface, so that the
             # following will be valid for both method options in the future:
             # Xt *= _get_node_weights(node_size, node_weights)
-            Xt = Xt.multiply(_get_node_weights(node_size, node_weights)).tocsr()
+            Xt = Xt.multiply(weights).tocsr()
 
-        Xt = Xt[:, node_size <= max_node_size]
         return Xt
 
     elif method == "dense_path":
@@ -204,6 +208,7 @@ def embed_with_tree(
                 f"'node_weights' is not supported for {method=}.",
             )
         Xt = np.zeros((X.shape[0], tree.max_depth), dtype=DTYPE)
+        # TODO: keep sparse
         path = tree_estimator.decision_path(X).toarray().astype(bool)
         node_idx = np.arange(tree.node_count)
 
@@ -215,15 +220,16 @@ def embed_with_tree(
 
     elif method == "all_nodes":
         # Select data corresponding to internal nodes, excluding leaves
-        mask = tree.children_left != tree.children_right
+        mask &= tree.children_left != tree.children_right
         node_size = tree.weighted_n_node_samples[mask]
 
         # The data is encoded as binary values indicating whether the sample
         # passes the test of each internal node
-        Xt = (X[:, tree.feature[mask]] > tree.threshold[mask]).astype(DTYPE)
+        Xt = X[:, tree.feature[mask]] > tree.threshold[mask]
+        Xt = Xt.astype(DTYPE)
 
         if node_weights is not None:
-            Xt *= _get_node_weights(node_size, node_weights)
+            Xt *= weights
 
         Xt = Xt[:, node_size <= max_node_size]
         return Xt

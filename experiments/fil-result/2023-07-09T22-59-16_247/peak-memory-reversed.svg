@@ -1,0 +1,1278 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="940" onload="init(evt)" viewBox="0 0 1200 940" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno">
+    <!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
+    <!--NOTES: -->
+    <defs>
+        <linearGradient id="background" y1="0" y2="1" x1="0" x2="0">
+            <stop stop-color="#eeeeee" offset="5%"/>
+            <stop stop-color="#eeeeb0" offset="95%"/>
+        </linearGradient>
+    </defs>
+    <style type="text/css">
+text { font-family:monospace; font-size:16px }
+#title { text-anchor:middle; font-size:21px; }
+#matched { text-anchor:end; }
+#search { text-anchor:end; opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style>
+    <script type="text/ecmascript"><![CDATA[
+        var nametype = 'Function:';
+        var fontsize = 16;
+        var fontwidth = 0.59;
+        var xpad = 10;
+        var inverted = true;
+        var searchcolor = 'rgb(230,0,230)';
+        var fluiddrawing = true;
+        var truncate_text_right = false;
+    ]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames, known_font_width;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    known_font_width = get_monospace_width(frames);
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+            svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            update_text_for_elements(frames.children);
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad;
+            matchedtxt.attributes.x.value = svgWidth - xpad;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function get_monospace_width(frames) {
+    // Given the id="frames" element, return the width of text characters if
+    // this is a monospace font, otherwise return 0.
+    text = find_child(frames.children[0], "text");
+    originalContent = text.textContent;
+    text.textContent = "!";
+    bangWidth = text.getComputedTextLength();
+    text.textContent = "W";
+    wWidth = text.getComputedTextLength();
+    text.textContent = originalContent;
+    if (bangWidth === wWidth) {
+        return bangWidth;
+    } else {
+        return 0;
+    }
+}
+function update_text_for_elements(elements) {
+    // In order to render quickly in the browser, you want to do one pass of
+    // reading attributes, and one pass of mutating attributes. See
+    // https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/ for details.
+
+    // Fall back to inefficient calculation, if we're variable-width font.
+    // TODO This should be optimized somehow too.
+    if (known_font_width === 0) {
+        for (var i = 0; i < elements.length; i++) {
+            update_text(elements[i]);
+        }
+        return;
+    }
+
+    var textElemNewAttributes = [];
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var r = find_child(e, "rect");
+        var t = find_child(e, "text");
+        var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+        var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+        var newX = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+        // Smaller than this size won't fit anything
+        if (w < 2 * known_font_width) {
+            textElemNewAttributes.push([newX, ""]);
+            continue;
+        }
+
+        // Fit in full text width
+        if (txt.length * known_font_width < w) {
+            textElemNewAttributes.push([newX, txt]);
+            continue;
+        }
+
+        var substringLength = Math.floor(w / known_font_width) - 2;
+        if (truncate_text_right) {
+            // Truncate the right side of the text.
+            textElemNewAttributes.push([newX, txt.substring(0, substringLength) + ".."]);
+            continue;
+        } else {
+            // Truncate the left side of the text.
+            textElemNewAttributes.push([newX, ".." + txt.substring(txt.length - substringLength, txt.length)]);
+            continue;
+        }
+    }
+
+    console.assert(textElemNewAttributes.length === elements.length, "Resize failed, please file a bug at https://github.com/jonhoo/inferno/");
+
+    // Now that we know new textContent, set it all in one go so we don't refresh a bazillion times.
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var values = textElemNewAttributes[i];
+        var t = find_child(e, "text");
+        t.attributes.x.value = values[0];
+        t.textContent = values[1];
+    }
+}
+
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    var to_update_text = [];
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                to_update_text.push(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                to_update_text.push(e);
+            }
+        }
+    }
+    update_text_for_elements(to_update_text);
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+    }
+    update_text_for_elements(el);
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script>
+    <rect x="0" y="0" width="100%" height="940" fill="url(#background)"/>
+    <text id="title" fill="rgb(0,0,0)" x="50.0000%" y="32.00">Peak Tracked Memory Usage (1012.8 MiB), Reversed</text>
+    <text id="subtitle" x="50.0000%" y="64.00">Made with the Fil profiler. <a href="https://pythonspeed.com/fil/" style="text-decoration: underline;" target="_parent">Try it on your code!</a></text>
+    <text id="details" fill="rgb(0,0,0)" x="10" y="84.00"> </text>
+    <text id="unzoom" class="hide" fill="rgb(0,0,0)" x="10" y="32.00">Reset Zoom</text>
+    <text id="search" fill="rgb(0,0,0)" x="1190" y="32.00">Search</text>
+    <text id="matched" fill="rgb(0,0,0)" x="1190" y="927.00"> </text>
+    <svg id="frames" x="10" width="1180" total_samples="1060703852">
+        <g>
+            <title>            data = np.empty_like(self.data, dtype=upcast(self.dtype)) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="166" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_coo.py:403 (tocsr) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="188" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="201.50"></text>
+        </g>
+        <g>
+            <title>                return convert_method(copy=copy) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="210" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_base.py:376 (asformat) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="232" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="245.50"></text>
+        </g>
+        <g>
+            <title>    return coo_matrix((vals, (i, j)), shape=(m, n)).asformat(format, (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="254" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_construct.py:892 (random) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="276" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="289.50"></text>
+        </g>
+        <g>
+            <title>m = sparse.random(1000, 100_000, density=0.01, random_state=rng, format=&quot;csr&quot;) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="298" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="311.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:12 (&lt;module&gt;) (8,000,112 bytes, 0.75%)</title>
+            <rect x="0.0000%" y="320" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="0" fg:w="8000112"/>
+            <text x="0.2500%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&lt;__array_function__ internals&gt;:200 (empty_like) (12,000,208 bytes, 1.13%)</title>
+            <rect x="0.0000%" y="144" width="1.1313%" height="21" fill="rgb(255,234,234)" fg:x="0" fg:w="12000208"/>
+            <text x="0.2500%" y="157.50"></text>
+        </g>
+        <g>
+            <title>            indices = np.empty_like(col, dtype=idx_dtype) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="166" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_coo.py:402 (tocsr) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="188" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="201.50"></text>
+        </g>
+        <g>
+            <title>                return convert_method(copy=copy) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="210" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_base.py:376 (asformat) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="232" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="245.50"></text>
+        </g>
+        <g>
+            <title>    return coo_matrix((vals, (i, j)), shape=(m, n)).asformat(format, (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="254" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_construct.py:892 (random) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="276" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="289.50"></text>
+        </g>
+        <g>
+            <title>m = sparse.random(1000, 100_000, density=0.01, random_state=rng, format=&quot;csr&quot;) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="298" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="311.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:12 (&lt;module&gt;) (4,000,096 bytes, 0.38%)</title>
+            <rect x="0.7542%" y="320" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="8000112" fg:w="4000096"/>
+            <text x="1.0042%" y="333.50"></text>
+        </g>
+        <g>
+            <title> (14,442,745 bytes, 1.36%)</title>
+            <rect x="0.0000%" y="122" width="1.3616%" height="21" fill="rgb(255,232,232)" fg:x="0" fg:w="14442745"/>
+            <text x="0.2500%" y="135.50"></text>
+        </g>
+        <g>
+            <title>    def iterate(self): (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="122" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="135.50"> ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/arpack/arpack.py:535 (iterate) (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="144" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="157.50">/h..</text>
+        </g>
+        <g>
+            <title>            params.iterate() (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="166" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="179.50"> ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/arpack/arpack.py:1697 (eigsh) (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="188" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="201.50">/h..</text>
+        </g>
+        <g>
+            <title>        _, eigvec = eigsh(XH_X, k=k, tol=tol ** 2, maxiter=maxiter, (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="210" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="223.50"> ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:532 (svds) (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="232" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="245.50">/h..</text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="254" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="267.50"> ..</text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (33,554,432 bytes, 3.16%)</title>
+            <rect x="1.3634%" y="276" width="3.1634%" height="21" fill="rgb(255,223,223)" fg:x="14461201" fg:w="33554432"/>
+            <text x="1.6134%" y="289.50">te..</text>
+        </g>
+        <g>
+            <title>    tau = gufunc(a, signature=signature, extobj=extobj) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="122" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="135.50"> ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/numpy/linalg/linalg.py:927 (qr) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="144" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="157.50">/h..</text>
+        </g>
+        <g>
+            <title> (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="166" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="179.50"></text>
+        </g>
+        <g>
+            <title>&lt;__array_function__ internals&gt;:200 (qr) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="188" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="201.50">&lt;_..</text>
+        </g>
+        <g>
+            <title>        eigvec, _ = np.linalg.qr(eigvec) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="210" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="223.50"> ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:536 (svds) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="232" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="245.50">/h..</text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="254" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="267.50"> ..</text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (33,555,232 bytes, 3.16%)</title>
+            <rect x="4.5315%" y="276" width="3.1635%" height="21" fill="rgb(255,223,223)" fg:x="48066185" fg:w="33555232"/>
+            <text x="4.7815%" y="289.50">te..</text>
+        </g>
+        <g>
+            <title>    u, s, v, info = gesXd(a1, compute_uv=compute_uv, lwork=lwork, (80,000,192 bytes, 7.54%)</title>
+            <rect x="7.6950%" y="122" width="7.5422%" height="21" fill="rgb(255,208,208)" fg:x="81621417" fg:w="80000192"/>
+            <text x="7.9450%" y="135.50">    u,..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/linalg/_decomp_svd.py:127 (svd) (80,000,192 bytes, 7.54%)</title>
+            <rect x="7.6950%" y="144" width="7.5422%" height="21" fill="rgb(255,208,208)" fg:x="81621417" fg:w="80000192"/>
+            <text x="7.9450%" y="157.50">/home/p..</text>
+        </g>
+        <g>
+            <title>    u, s, vh = svd(Av, full_matrices=False, overwrite_a=True) (80,000,192 bytes, 7.54%)</title>
+            <rect x="7.6950%" y="166" width="7.5422%" height="21" fill="rgb(255,208,208)" fg:x="81621417" fg:w="80000192"/>
+            <text x="7.9450%" y="179.50">    u,..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:546 (svds) (80,000,192 bytes, 7.54%)</title>
+            <rect x="7.6950%" y="188" width="7.5422%" height="21" fill="rgb(255,208,208)" fg:x="81621417" fg:w="80000192"/>
+            <text x="7.9450%" y="201.50">/home/p..</text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (80,000,192 bytes, 7.54%)</title>
+            <rect x="7.6950%" y="210" width="7.5422%" height="21" fill="rgb(255,208,208)" fg:x="81621417" fg:w="80000192"/>
+            <text x="7.9450%" y="223.50">    u,..</text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (80,000,192 bytes, 7.54%)</title>
+            <rect x="7.6950%" y="232" width="7.5422%" height="21" fill="rgb(255,208,208)" fg:x="81621417" fg:w="80000192"/>
+            <text x="7.9450%" y="245.50">test_sv..</text>
+        </g>
+        <g>
+            <title>    u = np.zeros((m, kmax + 1), order=&apos;F&apos;, dtype=typ) (8,008,096 bytes, 0.75%)</title>
+            <rect x="15.2372%" y="122" width="0.7550%" height="21" fill="rgb(255,237,237)" fg:x="161621609" fg:w="8008096"/>
+            <text x="15.4872%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:227 (_svdp) (8,008,096 bytes, 0.75%)</title>
+            <rect x="15.2372%" y="144" width="0.7550%" height="21" fill="rgb(255,237,237)" fg:x="161621609" fg:w="8008096"/>
+            <text x="15.4872%" y="157.50"></text>
+        </g>
+        <g>
+            <title>        res = _svdp(A, k=k, tol=tol**2, which=which, maxiter=None, (8,008,096 bytes, 0.75%)</title>
+            <rect x="15.2372%" y="166" width="0.7550%" height="21" fill="rgb(255,237,237)" fg:x="161621609" fg:w="8008096"/>
+            <text x="15.4872%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:507 (svds) (8,008,096 bytes, 0.75%)</title>
+            <rect x="15.2372%" y="188" width="0.7550%" height="21" fill="rgb(255,237,237)" fg:x="161621609" fg:w="8008096"/>
+            <text x="15.4872%" y="201.50"></text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (8,008,096 bytes, 0.75%)</title>
+            <rect x="15.2372%" y="210" width="0.7550%" height="21" fill="rgb(255,237,237)" fg:x="161621609" fg:w="8008096"/>
+            <text x="15.4872%" y="223.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (8,008,096 bytes, 0.75%)</title>
+            <rect x="15.2372%" y="232" width="0.7550%" height="21" fill="rgb(255,237,237)" fg:x="161621609" fg:w="8008096"/>
+            <text x="15.4872%" y="245.50"></text>
+        </g>
+        <g>
+            <title>    v = np.zeros((n, kmax), order=&apos;F&apos;, dtype=typ) (800,000,096 bytes, 75.42%)</title>
+            <rect x="15.9922%" y="122" width="75.4216%" height="21" fill="rgb(255,119,119)" fg:x="169629705" fg:w="800000096"/>
+            <text x="16.2422%" y="135.50">    v = np.zeros((n, kmax), order=&apos;F&apos;, dtype=typ)</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:228 (_svdp) (800,000,096 bytes, 75.42%)</title>
+            <rect x="15.9922%" y="144" width="75.4216%" height="21" fill="rgb(255,119,119)" fg:x="169629705" fg:w="800000096"/>
+            <text x="16.2422%" y="157.50">/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/sci..</text>
+        </g>
+        <g>
+            <title>        res = _svdp(A, k=k, tol=tol**2, which=which, maxiter=None, (800,000,096 bytes, 75.42%)</title>
+            <rect x="15.9922%" y="166" width="75.4216%" height="21" fill="rgb(255,119,119)" fg:x="169629705" fg:w="800000096"/>
+            <text x="16.2422%" y="179.50">        res = _svdp(A, k=k, tol=tol**2, which=which, maxiter=None,..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:507 (svds) (800,000,096 bytes, 75.42%)</title>
+            <rect x="15.9922%" y="188" width="75.4216%" height="21" fill="rgb(255,119,119)" fg:x="169629705" fg:w="800000096"/>
+            <text x="16.2422%" y="201.50">/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/sci..</text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (800,000,096 bytes, 75.42%)</title>
+            <rect x="15.9922%" y="210" width="75.4216%" height="21" fill="rgb(255,119,119)" fg:x="169629705" fg:w="800000096"/>
+            <text x="16.2422%" y="223.50">    u, s, vt = sparse.linalg.svds(m, k=100, solver=method)</text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (800,000,096 bytes, 75.42%)</title>
+            <rect x="15.9922%" y="232" width="75.4216%" height="21" fill="rgb(255,119,119)" fg:x="169629705" fg:w="800000096"/>
+            <text x="16.2422%" y="245.50">test_svd_decomposition.py:18 (&lt;module&gt;)</text>
+        </g>
+        <g>
+            <title>    work = np.empty(lwork, dtype=typ.lower()) (64,912,160 bytes, 6.12%)</title>
+            <rect x="91.4138%" y="122" width="6.1197%" height="21" fill="rgb(255,212,212)" fg:x="969629801" fg:w="64912160"/>
+            <text x="91.6638%" y="135.50">    ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:285 (_svdp) (64,912,160 bytes, 6.12%)</title>
+            <rect x="91.4138%" y="144" width="6.1197%" height="21" fill="rgb(255,212,212)" fg:x="969629801" fg:w="64912160"/>
+            <text x="91.6638%" y="157.50">/home..</text>
+        </g>
+        <g>
+            <title>        res = _svdp(A, k=k, tol=tol**2, which=which, maxiter=None, (64,912,160 bytes, 6.12%)</title>
+            <rect x="91.4138%" y="166" width="6.1197%" height="21" fill="rgb(255,212,212)" fg:x="969629801" fg:w="64912160"/>
+            <text x="91.6638%" y="179.50">    ..</text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:507 (svds) (64,912,160 bytes, 6.12%)</title>
+            <rect x="91.4138%" y="188" width="6.1197%" height="21" fill="rgb(255,212,212)" fg:x="969629801" fg:w="64912160"/>
+            <text x="91.6638%" y="201.50">/home..</text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (64,912,160 bytes, 6.12%)</title>
+            <rect x="91.4138%" y="210" width="6.1197%" height="21" fill="rgb(255,212,212)" fg:x="969629801" fg:w="64912160"/>
+            <text x="91.6638%" y="223.50">    ..</text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (64,912,160 bytes, 6.12%)</title>
+            <rect x="91.4138%" y="232" width="6.1197%" height="21" fill="rgb(255,212,212)" fg:x="969629801" fg:w="64912160"/>
+            <text x="91.6638%" y="245.50">test_..</text>
+        </g>
+        <g>
+            <title>            return self.H.matmat(X) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="342" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:387 (_rmatmat) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="364" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="377.50"></text>
+        </g>
+        <g>
+            <title>        Y = self._rmatmat(X) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="386" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="399.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:377 (rmatmat) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="408" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="421.50"></text>
+        </g>
+        <g>
+            <title>        return XH_mat(X_matmat(x)) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="430" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="443.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:476 (matmat_XH_X) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="452" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="465.50"></text>
+        </g>
+        <g>
+            <title>            return self.__matmat_impl(X) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="474" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="487.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:525 (_matmat) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="496" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="509.50"></text>
+        </g>
+        <g>
+            <title>        Y = self._matmat(X) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="518" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="531.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:337 (matmat) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="540" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="553.50"></text>
+        </g>
+        <g>
+            <title>                return self.matmat(x) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="562" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="575.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:420 (dot) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="584" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="597.50"></text>
+        </g>
+        <g>
+            <title>        return self.dot(x) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="606" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="619.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:393 (__mul__) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="628" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="641.50"></text>
+        </g>
+        <g>
+            <title>        return self*x (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="650" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="663.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:390 (__call__) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="672" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="685.50"></text>
+        </g>
+        <g>
+            <title>        return lambda v: m(v) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="694" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="707.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/lobpcg/lobpcg.py:65 (&lt;lambda&gt;) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="716" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="729.50"></text>
+        </g>
+        <g>
+            <title>    blockVectorAX = A(blockVectorX) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="738" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="751.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/lobpcg/lobpcg.py:523 (lobpcg) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="760" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="773.50"></text>
+        </g>
+        <g>
+            <title>        _, eigvec = lobpcg(XH_X, X, tol=tol ** 2, maxiter=maxiter, (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="782" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="795.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:491 (svds) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="804" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="817.50"></text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="826" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="839.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (8,000,096 bytes, 0.75%)</title>
+            <rect x="97.6561%" y="848" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1035842145" fg:w="8000096"/>
+            <text x="97.9061%" y="861.50"></text>
+        </g>
+        <g>
+            <title>        return self._with_data(self.data.copy(), copy=True) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="122" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_data.py:92 (copy) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="144" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="157.50"></text>
+        </g>
+        <g>
+            <title>            return self.copy() (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="166" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_data.py:85 (conj) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="188" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="201.50"></text>
+        </g>
+        <g>
+            <title>        self.A = adjoint.A.T.conj() (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="210" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:742 (__init__) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="232" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="245.50"></text>
+        </g>
+        <g>
+            <title>            self.__adj = _AdjointMatrixOperator(self) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="254" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:737 (_adjoint) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="276" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="289.50"></text>
+        </g>
+        <g>
+            <title>        return self._adjoint() (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="298" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:484 (adjoint) (16,000,192 bytes, 1.51%)</title>
+            <rect x="97.6561%" y="320" width="1.5085%" height="21" fill="rgb(255,231,231)" fg:x="1035842145" fg:w="16000192"/>
+            <text x="97.9061%" y="333.50"></text>
+        </g>
+        <g>
+            <title>            return self.H.matvec(x) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="342" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:301 (_rmatvec) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="364" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="377.50"></text>
+        </g>
+        <g>
+            <title>        y = self._rmatvec(x) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="386" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="399.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:279 (rmatvec) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="408" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="421.50"></text>
+        </g>
+        <g>
+            <title>            y[:] = self.A.rmatvec(x) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="430" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="443.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:68 (__call__) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="452" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="465.50"></text>
+        </g>
+        <g>
+            <title>        u, sigma, bnd, v, info = lansvd(jobu, jobv, m, n, k, aprod, u, v, tol, (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="474" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="487.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:307 (_svdp) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="496" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="509.50"></text>
+        </g>
+        <g>
+            <title>        res = _svdp(A, k=k, tol=tol**2, which=which, maxiter=None, (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="518" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="531.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:507 (svds) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="540" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="553.50"></text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="562" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="575.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (8,000,096 bytes, 0.75%)</title>
+            <rect x="98.4103%" y="584" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1043842241" fg:w="8000096"/>
+            <text x="98.6603%" y="597.50"></text>
+        </g>
+        <g>
+            <title>            return self.H.matmat(X) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="386" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="399.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:387 (_rmatmat) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="408" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="421.50"></text>
+        </g>
+        <g>
+            <title>        Y = self._rmatmat(X) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="430" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="443.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:377 (rmatmat) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="452" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="465.50"></text>
+        </g>
+        <g>
+            <title>        return XH_mat(X_matmat(x)) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="474" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="487.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:476 (matmat_XH_X) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="496" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="509.50"></text>
+        </g>
+        <g>
+            <title>            return self.__matmat_impl(X) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="518" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="531.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:525 (_matmat) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="540" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="553.50"></text>
+        </g>
+        <g>
+            <title>        Y = self._matmat(X) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="562" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="575.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:337 (matmat) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="584" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="597.50"></text>
+        </g>
+        <g>
+            <title>                return self.matmat(x) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="606" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="619.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:420 (dot) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="628" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="641.50"></text>
+        </g>
+        <g>
+            <title>        return self.dot(x) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="650" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="663.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:393 (__mul__) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="672" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="685.50"></text>
+        </g>
+        <g>
+            <title>        return self*x (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="694" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="707.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:390 (__call__) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="716" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="729.50"></text>
+        </g>
+        <g>
+            <title>        return lambda v: m(v) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="738" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="751.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/lobpcg/lobpcg.py:65 (&lt;lambda&gt;) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="760" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="773.50"></text>
+        </g>
+        <g>
+            <title>    blockVectorAX = A(blockVectorX) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="782" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="795.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/lobpcg/lobpcg.py:523 (lobpcg) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="804" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="817.50"></text>
+        </g>
+        <g>
+            <title>        _, eigvec = lobpcg(XH_X, X, tol=tol ** 2, maxiter=maxiter, (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="826" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="839.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:491 (svds) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="848" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="861.50"></text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="870" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="883.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (4,000,144 bytes, 0.38%)</title>
+            <rect x="99.2458%" y="892" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1052703548" fg:w="4000144"/>
+            <text x="99.4958%" y="905.50"></text>
+        </g>
+        <g>
+            <title>all (1,060,703,852 bytes, 100%)</title>
+            <rect x="0.0000%" y="100" width="100.0000%" height="21" fill="rgb(255,100,100)" fg:x="0" fg:w="1060703852"/>
+            <text x="0.2500%" y="113.50"></text>
+        </g>
+        <g>
+            <title>            return self.__class__((data, self.indices.copy(), (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="122" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_compressed.py:1230 (_with_data) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="144" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="157.50"></text>
+        </g>
+        <g>
+            <title>        return self._with_data(self.data.copy(), copy=True) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="166" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_data.py:92 (copy) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="188" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="201.50"></text>
+        </g>
+        <g>
+            <title>            return self.copy() (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="210" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/_data.py:85 (conj) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="232" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="245.50"></text>
+        </g>
+        <g>
+            <title>        self.A = adjoint.A.T.conj() (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="254" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:742 (__init__) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="276" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="289.50"></text>
+        </g>
+        <g>
+            <title>            self.__adj = _AdjointMatrixOperator(self) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="298" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:737 (_adjoint) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="320" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="333.50"></text>
+        </g>
+        <g>
+            <title>        return self._adjoint() (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="342" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:484 (adjoint) (8,000,304 bytes, 0.75%)</title>
+            <rect x="99.2458%" y="364" width="0.7542%" height="21" fill="rgb(255,237,237)" fg:x="1052703548" fg:w="8000304"/>
+            <text x="99.4958%" y="377.50"></text>
+        </g>
+        <g>
+            <title>            return self.H.matvec(x) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="386" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="399.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:301 (_rmatvec) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="408" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="421.50"></text>
+        </g>
+        <g>
+            <title>        y = self._rmatvec(x) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="430" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="443.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_interface.py:279 (rmatvec) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="452" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="465.50"></text>
+        </g>
+        <g>
+            <title>            y[:] = self.A.rmatvec(x) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="474" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="487.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:68 (__call__) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="496" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="509.50"></text>
+        </g>
+        <g>
+            <title>        u, sigma, bnd, v, info = lansvd(jobu, jobv, m, n, k, aprod, u, v, tol, (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="518" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="531.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_svdp.py:307 (_svdp) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="540" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="553.50"></text>
+        </g>
+        <g>
+            <title>        res = _svdp(A, k=k, tol=tol**2, which=which, maxiter=None, (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="562" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="575.50"></text>
+        </g>
+        <g>
+            <title>/home/pedro/mestrado/biomal_repo/scripts/cascade_forests/env/lib/python3.10/site-packages/scipy/sparse/linalg/_eigen/_svds.py:507 (svds) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="584" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="597.50"></text>
+        </g>
+        <g>
+            <title>    u, s, vt = sparse.linalg.svds(m, k=100, solver=method) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="606" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="619.50"></text>
+        </g>
+        <g>
+            <title>test_svd_decomposition.py:18 (&lt;module&gt;) (4,000,160 bytes, 0.38%)</title>
+            <rect x="99.6229%" y="628" width="0.3771%" height="21" fill="rgb(255,240,240)" fg:x="1056703692" fg:w="4000160"/>
+            <text x="99.8729%" y="641.50"></text>
+        </g>
+    </svg>
+</svg>
