@@ -47,25 +47,23 @@ class PositiveDropper(BaseSampler):
 
     def fit_resample(self, X, y):
         if set(np.unique(y)) != {0.0, 1.0}:
-            raise ValueError
+            raise ValueError("Only binary or multi-label classification is supported.")
 
         self.random_state_ = check_random_state(self.random_state)
-
-        n_positives = int(y.sum())
-        index_positives = np.nonzero(y)
-
-        positives_to_mask = self.random_state_.choice(
-            n_positives,
-            size=int(self.drop * n_positives),
-            replace=False,
-        )
-        indices_to_mask = (
-            index_positives[0][positives_to_mask],
-            index_positives[1][positives_to_mask],
-        )
-
+        if y.ndim == 1:
+            y = y.reshape(-1, 1)
         y_sample = y.copy()
-        y_sample[indices_to_mask] = 0.0
+
+        for j, y_col in enumerate(y.T):
+            n_positives = int(y_col.sum())
+            index_positives = np.nonzero(y_col)
+            positives_to_mask = self.random_state_.choice(
+                n_positives,
+                size=int(self.drop * n_positives),
+                replace=False,
+            )
+            indices_to_mask = index_positives[0][positives_to_mask]
+            y_sample[indices_to_mask, j] = 0.0
 
         return X, y_sample
 

@@ -2,6 +2,7 @@ from numbers import Real, Integral
 import numpy as np
 import scipy.sparse
 import scipy.stats
+import sklearn.tree
 from sklearn.base import (
     BaseEstimator,
     TransformerMixin,
@@ -30,6 +31,9 @@ _COMMON_PARAMS = {
         callable,
         None,
     ],
+    "max_pvalue": [
+        Interval(Real, 0, 1, closed="both"),
+    ],
     "max_node_size": [
         Interval(Real, 0, 1, closed="right"),
         Interval(Integral, 1, None, closed="left"),
@@ -37,9 +41,21 @@ _COMMON_PARAMS = {
 }
 
 
-def _chi2_per_node(tree):
-    """Calculate the chi2 statistic for each node in the tree."""
+def _chi2_per_node(
+    tree: sklearn.tree._tree.Tree,
+    yates_correction=False,
+):
+    """Calculate the chi2 statistic for each node in the tree.
 
+    Leverages numpy broadcasting for faster computation.
+    Each node is regaded as a contingency table, with the classes
+    being the columns and the node selection of labels being the rows.
+
+    Parameters
+    ----------
+    tree : sklearn.tree._tree.Tree
+        The tree to calculate the chi2 statistic for.
+    """
     # Total number of negatives, total number of positives
     # shape=(n_labels, n_classes)
     margin_row = tree.value[0]  # Class counts at the root node
@@ -49,8 +65,8 @@ def _chi2_per_node(tree):
     # shape=(n_nodes, n_groups)
     # n_groups = 2, for inside/outside the node
     margin_col = np.stack([
-        tree.weighted_n_node_samples,
-        total - tree.weighted_n_node_samples,
+        tree.weighted_n_node_samples[1:],  # [:1] to skip the root node
+        total - tree.weighted_n_node_samples[1:],
     ]).T
 
     # Expected values under the null hypothesis
@@ -61,17 +77,24 @@ def _chi2_per_node(tree):
     # shape=(n_nodes, n_labels, n_groups, n_classes)
     contingency_tables = np.stack(
         [
-            tree.value,  # shape=(n_nodes, n_labels, n_classes)
-            margin_row - tree.value,  # same shape
+            tree.value[1:],  # shape=(n_nodes, n_labels, n_classes)
+            margin_row - tree.value[1:],  # same shape
         ],
         axis=-2,  # so that classes is the last axis
     )
 
-    chi2 = (contingency_tables - expected) ** 2 / expected
-    chi2 = chi2.sum(axis=(-1, -2))  # sum over classes and groups
+    diff = np.abs(contingency_tables - expected)
+    if yates_correction:  # Yates' correction for continuity
+        diff[diff <= 0.5] = 0.0
+        diff[diff > 0.5] -= 0.5
 
-    # chi2.shape = (n_nodes, n_labels)
-    return chi2
+    chi2 = (diff ** 2 / expected).sum(axis=(-1, -2))  # Sum over classes and groups
+
+    # Add a row of zeros for the root node  # TODO: avoid copying
+    return np.concatenate([
+        np.zeros((1, tree.n_outputs), dtype=chi2.dtype),
+        chi2,
+    ])
 
 
 def _hstack(Xs):
@@ -104,6 +127,7 @@ def _get_node_weights(node_size, node_weights):
     raise RuntimeError
 
 
+# TODO: refactor
 @validate_params(
     {
         "tree": [BaseDecisionTree],
@@ -153,6 +177,10 @@ def embed_with_tree(
         - callable: A callable that takes a 1D array of node sizes as input and
             returns a 1D array of the same shape with the node weights.
         - None: No weighting is applied.
+    max_pvalue : float, optional (default=1.0)
+        If less than 1, a Chi-squared statistic is calculated for each node,
+        considering the node as a contingency table. Nodes whose statistic
+        yields a p-value greater than `max_pvalue` are discarded.
     max_node_size : float or int, optional (default=1.0)
         The maximum number of training samples passing through a node for it to
         be considered in the embedding. If a float between 0 and 1, it
@@ -177,8 +205,8 @@ def embed_with_tree(
         if max_pvalue < 1.0:
             chi2 = _chi2_per_node(tree)  # shape=(n_nodes, n_labels)
             chi2 = chi2.max(axis=1)  # take maximum chi2 among labels, shape=(n_nodes,)
-            threshold = scipy.stats.chi2.ppf(max_pvalue, df=1)
-            mask &= chi2 > threshold
+            chi2_threshold = scipy.stats.chi2.ppf(max_pvalue, df=1)
+            mask &= chi2 > chi2_threshold
 
         node_size = tree.weighted_n_node_samples
 
@@ -187,6 +215,10 @@ def embed_with_tree(
             max_node_size = np.ceil(max_node_size * node_size[0])
         
         mask &= node_size <= max_node_size
+
+        if method == "all_nodes":
+            mask &= tree.children_left != tree.children_right
+
         weights = _get_node_weights(node_size[mask], node_weights)
 
     if method == "path":
@@ -209,18 +241,17 @@ def embed_with_tree(
             )
         Xt = np.zeros((X.shape[0], tree.max_depth), dtype=DTYPE)
         # TODO: keep sparse
-        path = tree_estimator.decision_path(X).toarray().astype(bool)
+        paths = tree_estimator.decision_path(X).toarray().astype(bool)
         node_idx = np.arange(tree.node_count)
 
-        for i, mask in enumerate(path):
-            is_right_child = tree.children_right[mask][:-1] == node_idx[mask][1:]
-            Xt[i, : len(is_right_child)] = is_right_child
+        for i, path in enumerate(paths):
+            is_right_child = tree.children_right[path][:-1] == node_idx[path][1:]
+            Xt[i, :len(is_right_child)] = is_right_child
 
         return Xt
 
     elif method == "all_nodes":
         # Select data corresponding to internal nodes, excluding leaves
-        mask &= tree.children_left != tree.children_right
         node_size = tree.weighted_n_node_samples[mask]
 
         # The data is encoded as binary values indicating whether the sample
@@ -252,11 +283,13 @@ class BaseTreeEmbedder(
         estimator,
         method="all_nodes",
         node_weights=None,
+        max_pvalue=1.0,
         max_node_size=1.0,
     ):
         self.estimator = estimator
         self.method = method
         self.node_weights = node_weights
+        self.max_pvalue = max_pvalue
         self.max_node_size = max_node_size
 
     def fit(self, X, y, **fit_params):
@@ -279,6 +312,7 @@ class TreeEmbedder(BaseTreeEmbedder):
             X=X,
             method=self.method,
             node_weights=self.node_weights,
+            max_pvalue=self.max_pvalue,
             max_node_size=self.max_node_size,
         )
 
@@ -298,6 +332,7 @@ class ForestEmbedder(BaseTreeEmbedder):
                 X,
                 method=self.method,
                 node_weights=self.node_weights,
+                max_pvalue=self.max_pvalue,
                 max_node_size=self.max_node_size,
             )
             for tree in self.estimator_.estimators_

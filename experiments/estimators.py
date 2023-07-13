@@ -3,7 +3,7 @@
 from numbers import Real, Integral
 import joblib
 import numpy as np
-# from sklearn.datasets import load_iris
+from sklearn.datasets import load_iris
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.decomposition import PCA, SparsePCA, TruncatedSVD, NMF
@@ -29,11 +29,12 @@ from skmultilearn.dataset import load_dataset
 from deep_forest.tree_embedder import (
     ForestEmbedder,
 )
-from deep_forest.cascade import Cascade
+from deep_forest.cascade import Cascade, AlternatingLevel
 from deep_forest.weak_labels import WeakLabelImputer
 from deep_forest.estimator_adapters import ClassifierTransformer, MultiOutputVotingClassifier
 from skmultilearn.model_selection import IterativeStratification
 from _lobpcg_truncated_svd import LOBPCGTruncatedSVD
+import positive_dropper
 
 RSTATE = check_random_state(0)
 
@@ -49,7 +50,7 @@ rf_embedder = ForestEmbedder(
     RandomForestClassifier(
         n_estimators=100,
         max_features="sqrt",
-        # min_samples_leaf=0.001,
+        max_depth=10,
         random_state=RSTATE,
     ),
     method="path",
@@ -61,7 +62,7 @@ xt_embedder = ForestEmbedder(
     ExtraTreesClassifier(
         n_estimators=100,
         max_features=1,
-        # min_samples_leaf=0.001,
+        max_depth=10,
         random_state=RSTATE,
     ),
     method="path",
@@ -103,7 +104,7 @@ final_estimator = MultiOutputVotingClassifier(
 #     ]
 # )
 
-alternating_level_estimator = [
+alternating_level_estimator = AlternatingLevel([
     ("xt_embedder", Pipeline([
         ("xt", xt_embedder),
         (
@@ -128,10 +129,8 @@ alternating_level_estimator = [
             ),
         ),
     ])),
-]
+])
 
-# weak_label_imputer = WeakLabelImputer(final_estimator, threshold=0.8)
-# weak_label_imputer = PositiveUnlabeledImputer(final_estimator, threshold=0.5)
 weak_label_imputer = WeakLabelImputer(
     ExtraTreesClassifier(
         n_estimators=100,
@@ -146,7 +145,7 @@ weak_label_imputer = WeakLabelImputer(
     verbose=True,
 )
 
-cascade_original = Cascade(
+cascade_proba = Cascade(
     level=ClassifierTransformer(final_estimator),
     final_estimator=final_estimator,
     max_levels=10,
@@ -154,7 +153,15 @@ cascade_original = Cascade(
     random_state=RSTATE,
 )
 
-cascade_weak_label_original = Cascade(
+cascade_tree_embedder = Cascade(
+    level=alternating_level_estimator,
+    final_estimator=final_estimator,
+    max_levels=10,
+    verbose=True,
+    random_state=RSTATE,
+)
+
+cascade_weak_label_proba = Cascade(
     level=ClassifierTransformer(final_estimator),
     final_estimator=final_estimator,
     inter_level_sampler=weak_label_imputer,
@@ -167,19 +174,21 @@ cascade_weak_label_tree_embedder = Cascade(
     level=alternating_level_estimator,
     final_estimator=final_estimator,
     inter_level_sampler=weak_label_imputer,
-    max_levels=5,  # XXX FIXME
-    verbose=True,
-    random_state=RSTATE,
-    # scoring="neg_mean_squared_error",
-)
-
-cascade_tree_embedder = Cascade(
-    level=alternating_level_estimator,
-    final_estimator=final_estimator,
-    # scoring="neg_mean_squared_error",
     max_levels=10,
     verbose=True,
     random_state=RSTATE,
+)
+
+cascade_weak_label_tree_embedder_pvalue = Cascade(
+    level=alternating_level_estimator,
+    final_estimator=final_estimator,
+    inter_level_sampler=weak_label_imputer,
+    max_levels=10,
+    verbose=True,
+    random_state=RSTATE,
+).set_params(
+    level__rf_embedder__rf__max_pvalue=0.05,
+    level__xt_embedder__xt__max_pvalue=0.05,
 )
 
 estimators_dict = {
@@ -189,13 +198,18 @@ estimators_dict = {
 }
 
 if __name__ == "__main__":
-    X, y, _, _ = load_dataset("yeast", "undivided")
     # X, y, _, _ = load_dataset("mediamill", "undivided")
-    X, y = X.toarray(), y.toarray()
     # X, y = load_iris(return_X_y=True)
+    X, y, _, _ = load_dataset("yeast", "undivided")
+    X, y = X.toarray(), y.toarray()[:, :1]
     # cascade = cascade_original.fit(X, y)
-    cascade = cascade_weak_label_tree_embedder.fit(X, y)
     # cascade = cascade_tree_embedder.fit(X, y)
+    cascade = positive_dropper.wrap_estimator(
+        cascade_weak_label_tree_embedder_pvalue,
+        drop=0.5,
+        random_state=RSTATE,
+    )
+    cascade = cascade.fit(X, y)
 
     joblib.dump(cascade, "cascade.joblib")
     with open("cascade.html", "w") as f:

@@ -33,11 +33,10 @@ def fitted_clf(random_state, data):
 def test_embed_with_path(fitted_clf, data):
     Xt = embed_with_tree(fitted_clf, data[0], method="path")
     assert isinstance(Xt, scipy.sparse.csr_matrix)
-    n_internal_nodes = fitted_clf.tree_.node_count - fitted_clf.tree_.n_leaves
-    assert Xt.shape == (data[0].shape[0], n_internal_nodes)
+    assert Xt.shape == (data[0].shape[0], fitted_clf.tree_.node_count)
     # Assert is binary (sparse matrix)
     assert set(Xt.data) == {1}
-    assert Xt.sum(axis=1).max() <= fitted_clf.tree_.max_depth
+    assert Xt.sum(axis=1).max() <= fitted_clf.tree_.max_depth + 1
 
 
 def test_embed_with_path_node_weights(fitted_clf, data):
@@ -48,12 +47,10 @@ def test_embed_with_path_node_weights(fitted_clf, data):
         node_weights=lambda x: x,  # Assing node weight equal to node size
     )
     tree = fitted_clf.tree_
-    # Selects data corresponding to internal nodes, excluding leaves
-    mask = tree.children_left != tree.children_right
     manual_result = (
         tree.decision_path(data[0].astype('float32')).toarray()
         * tree.weighted_n_node_samples
-    )[:, mask]
+    )
     assert isinstance(Xt, scipy.sparse.csr_matrix)
     assert np.all(Xt == manual_result)
 
@@ -73,8 +70,13 @@ def test_embed_with_tree_node_weights(fitted_clf, data, node_weights, method):
         method=method,
         node_weights=node_weights,
     )
-    n_internal_nodes = fitted_clf.tree_.node_count - fitted_clf.tree_.n_leaves
-    assert Xt.shape == (data[0].shape[0], n_internal_nodes)
+
+    n_nodes = fitted_clf.tree_.node_count
+    if method == "all_nodes":
+        n_nodes -= fitted_clf.tree_.n_leaves
+        
+    assert Xt.shape == (data[0].shape[0], n_nodes)
+
     if node_weights is None:
         if isinstance(Xt, scipy.sparse.csr_matrix):
             assert set(Xt.data) == {1}
@@ -95,10 +97,14 @@ def test_embed_with_tree_max_node_size(fitted_clf, data, max_node_size, method):
     if isinstance(max_node_size, float):
         max_node_size = np.ceil(max_node_size * data[0].shape[0])
 
-    internal_node_size = fitted_clf.tree_.n_node_samples[
-        fitted_clf.tree_.children_left != fitted_clf.tree_.children_right
-    ]
-    n_outputs = np.sum(internal_node_size <= max_node_size)
+    node_size = fitted_clf.tree_.n_node_samples
+    
+    if method == "all_nodes":
+        node_size = node_size[
+            fitted_clf.tree_.children_left != fitted_clf.tree_.children_right
+        ]
+
+    n_outputs = np.sum(node_size <= max_node_size)
     assert Xt.shape == (data[0].shape[0], n_outputs)
 
     if isinstance(Xt, scipy.sparse.csr_matrix):
@@ -123,25 +129,23 @@ def test_embedder_classes(data, embedder, method):
     embedder.transform(X)
 
 
-def test_chi2(data):
+@pytest.mark.parametrize("correction", [True, False])
+def test_chi2(data, correction):
     embedder = TreeEmbedder(ExtraTreeClassifier()).fit(*data)
     tree = embedder.estimator_.tree_
     total_counts = tree.value[0]
     
-    pvalues = []
-    for i, node in enumerate(tree.value[1:]):  # Skip the root node
+    chi2 = []
+    for node in tree.value[1:]:  # Skip the root node
         label_contingency_tables = [
             [counts, label_total_counts - counts] 
             for counts, label_total_counts in zip(node, total_counts)
         ]
-        label_pvalues = [
-            scipy.stats.chi2_contingency(table)[1]
-            #     if np.sum(table[0]) > 30
-            #     else scipy.stats.fisher_exact(table)[1]
+        label_chi2 = [
+            scipy.stats.chi2_contingency(table, correction=correction)[0]
             for table in label_contingency_tables
         ]
-        pvalues.append(min(label_pvalues))
-        print(i, pvalues[-1], end="\r")
-    print()
-
-    assert np.allclose(pvalues, _chi2_per_node(tree))
+        chi2.append(label_chi2)
+    
+    chi2_broadcast = _chi2_per_node(tree, yates_correction=correction)[1:]
+    assert np.allclose(chi2, chi2_broadcast)

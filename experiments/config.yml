@@ -109,13 +109,15 @@ aliases:
 
   estimator:
   - name: proba
-    call: estimators.cascade_original
+    call: estimators.cascade_proba
   - name: proba_weak
-    call: estimators.cascade_weak_label_original
+    call: estimators.cascade_weak_label_proba
   - name: embedding
     call: estimators.cascade_tree_embedder
   - name: embedding_weak
     call: estimators.cascade_weak_label_tree_embedder
+  - name: embedding_weak_chi2
+    call: estimators.cascade_weak_label_tree_embedder_pvalue
 
   wrapper:
     - name: drop90
@@ -161,80 +163,34 @@ aliases:
 
 
 runs:
-  - estimator:
-    - proba
-    - proba_weak
-    - embedding
-    - embedding_weak
-    dataset:
-    - bibtex
-    - birds
-    - delicious
-    - mediamill
-    - rcv1subset1
-    - tmc2007_500
-    - genbase
-    - emotions
-    - enron
-    - medical
-    - scene
-    - yeast
-    - Corel5k
-    active: false
-
-  - estimator:
-    - proba_weak
-    - embedding_weak
-    - proba
-    - embedding
-    dataset:
-    - scene
-    - yeast
-    - tmc2007_500
-    - medical
-    wrapper:
-    - null
-    # - drop20
-    - drop30
-    # - drop40
-    - drop50
-    # - drop60
-    # - drop70
-    - drop80
-    # - drop90
-    active: false
-
   - dataset:
-    - Corel5k  # too big
-    - bibtex
-    - birds
-    - delicious  # too big
     - mediamill  # too big
-    - rcv1subset1
+    - delicious  # too big
+    - Corel5k  # too big
     - tmc2007_500  # already ran
-    - genbase
-    - emotions
-    - enron
     - medical  # already ran
     - scene  # already ran
     - yeast  # already ran
+    - bibtex
+    - birds
+    - rcv1subset1
+    - genbase
+    - emotions
+    - enron
     estimator:
-    # - proba_weak
+    - embedding_weak_chi2
+    - proba_weak
     - embedding_weak
-    # - proba
+    - proba
     - embedding
-
     wrapper:
-    - null
     # - drop20
     - drop30
+    - null
     # - drop40
-    - drop50
-    # - drop60
+    # - drop50
+    - drop60
     # - drop70
     - drop80
-    # - drop90
+    - drop90
     active: true
-    # cv:
-    #   params:
-    #     n_jobs: 3

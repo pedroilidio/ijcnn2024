@@ -7,13 +7,15 @@ from sklearn.base import (
     BaseEstimator,
     MetaEstimatorMixin,
     clone,
+    check_is_fitted,
 )
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import check_scoring, get_scorer_names
 from sklearn.utils import check_random_state
+from sklearn.utils._estimator_html_repr import _VisualBlock
 from sklearn.utils._tags import _safe_tags
-from sklearn.utils._param_validation import HasMethods, Interval, StrOptions
-from sklearn.utils.metaestimators import available_if
+from sklearn.utils._param_validation import HasMethods, Interval, StrOptions, Hidden
+from sklearn.utils.metaestimators import available_if, _BaseComposition
 from sklearn.pipeline import (
     _fit_transform_one,
     _final_estimator_has,
@@ -23,12 +25,110 @@ from sklearn.compose import ColumnTransformer
 from imblearn.pipeline import Pipeline, _fit_resample_one
 
 
+class AlternatingLevel(TransformerMixin, _BaseComposition):
+    # _parameter_constraints = {
+    #     **ColumnTransformer._parameter_constraints,
+    #     "last_output_indices": [dict, None],
+    # }
+    # del _parameter_constraints["remainder"]
+    _required_parameters = ["transformers"]
+
+    _parameter_constraints: dict = {
+        "transformers": [list, Hidden(tuple)],
+        "sparse_threshold": [Interval(Real, 0, 1, closed="both")],
+        "n_jobs": [Integral, None],
+        "transformer_weights": [dict, None],
+        "verbose": ["verbose"],
+        "verbose_feature_names_out": ["boolean"],
+    }
+
+    def __init__(
+        self,
+        transformers,
+        *,
+        sparse_threshold=0.3,
+        n_jobs=None,
+        transformer_weights=None,
+        verbose=False,
+        verbose_feature_names_out=True,
+        last_output_indices=None,
+    ):
+        self.transformers = transformers
+        self.sparse_threshold = sparse_threshold
+        self.n_jobs = n_jobs
+        self.transformer_weights = transformer_weights
+        self.verbose = verbose
+        self.verbose_feature_names_out = verbose_feature_names_out
+        self.last_output_indices = last_output_indices
+    
+    def get_params(self, deep=True):
+        return self._get_params("transformers", deep=deep)
+
+    def set_params(self, **kwargs):
+        return self._set_params("transformers", **kwargs)
+    
+    @property
+    def _last_output_indices(self):
+        # If no outputs exist from the last level
+        if self.last_output_indices is None:
+            return {name: slice(0, 0) for name, _ in self.transformers}
+        return self.last_output_indices
+
+    @property
+    def output_indices_(self):
+        check_is_fitted(self)
+        return self.column_transformer_.output_indices_
+    
+    def _get_column_indices(self):
+        slices = []
+        for name, _ in self.transformers:
+            new_slice = np.ones(self.n_features_in_, dtype=bool)
+            new_slice[self._last_output_indices[name]] = False
+            slices.append(new_slice)
+        return slices
+
+    def _make_column_transformer(self):
+        return ColumnTransformer(
+            transformers=[
+                (*t, cols)
+                for t, cols in zip(self.transformers, self._get_column_indices())
+            ],
+            sparse_threshold=self.sparse_threshold,
+            n_jobs=self.n_jobs,
+            transformer_weights=self.transformer_weights,
+            verbose=self.verbose,
+            verbose_feature_names_out=self.verbose_feature_names_out,
+        )
+
+    def fit(self, X, y=None):
+        self._validate_params()
+        self._check_n_features(X, reset=True)
+        self.column_transformer_ = self._make_column_transformer().fit(X, y)
+        return self
+
+    def fit_transform(self, X, y=None):
+        self._validate_params()
+        self._check_n_features(X, reset=True)
+        self.column_transformer_ = self._make_column_transformer()
+        return self.column_transformer_.fit_transform(X, y)
+    
+    def transform(self, X):
+        check_is_fitted(self)
+        return self.column_transformer_.transform(X)
+    
+    def _sk_visual_block_(self):
+        names, transformers = zip(*self.transformers)
+        name_details = self._get_column_indices()
+        return _VisualBlock(
+            "parallel", transformers, names=names, name_details=name_details
+        )
+
+
 class Cascade(Pipeline):
     _parameter_constraints = {
         "level": [
             HasMethods(["fit", "transform"]),
             HasMethods(["fit_transform", "transform"]),
-            list,
             # HasMethods(["fit_resample"]),  # TODO: Decide.
         ],
         "final_estimator": [
@@ -264,32 +364,6 @@ class Cascade(Pipeline):
         """Skip name validation, since names are generated automatically."""
         pass
 
-    def _validate_steps(self):
-        """Complement _validate_params in the case where self.level is a list."""
-        if isinstance(self.level, list):
-            for name_transformer in self.level:
-                if (
-                    not isinstance(name_transformer, tuple)
-                    or len(name_transformer) != 2
-                    or not isinstance(name_transformer[0], str)
-                ):
-                    raise TypeError(
-                        "self.level should be either a transformer or a list of"
-                        " tuples in the format (transformer_name, transformer)."
-                        f" Got {name_transformer} instead."
-                    )
-
-                transformer = name_transformer[1]
-
-                if not hasattr(transformer, "transform") or (
-                    not hasattr(transformer, "fit")
-                    and not hasattr(transformer, "fit_transform")
-                ):
-                    raise TypeError(
-                        "If self.level is a list, all the transformers must implement"
-                        " transform and either fit or fit_transform."
-                    )
-
     def fit(self, X, y=None, **fit_params):
         """Fit the model.
 
@@ -364,39 +438,29 @@ class Cascade(Pipeline):
         max_levels = self.n_levels_ if final_fit else self.max_levels
         original_X = X
 
-        if isinstance(self.level, list):
-            # TODO: Make a transformer wrapper to do the column swapping,
-            # passing always a single trasnformer to self.level
-            # Update: Probably not possible, since every level must swap columns
-            base_level = ColumnTransformer(
-                [(name, transformer, slice(None)) for name, transformer in self.level]
-            )
-            # No outputs exist from the last level
-            last_level_slices = {name: slice(0, 0) for name, _ in self.level}
-
-        else:
-            base_level = self.level
-
         # Initialize steps with the final estimator
         self.steps = [
             ("final_estimator_", clone(self.final_estimator)),
         ]
         self.n_levels_ = 0
+        last_level = None
 
         for level_count in range(max_levels):
-            cloned_transformer = clone(base_level)
+            cloned_transformer = clone(self.level)
 
-            if isinstance(self.level, list):
+            if last_level is not None:
                 # Make each transformer in the current level unaware of its own outputs
                 # of the last level.
-                new_transformers = []
-                for i, item in enumerate(cloned_transformer.transformers):
-                    name, transformer, old_slice = item
-                    new_slice = np.ones(X.shape[1], dtype=bool)
-                    new_slice[last_level_slices[name]] = False
-                    new_transformers.append((name, transformer, new_slice))
-
-                cloned_transformer.transformers = new_transformers
+                if isinstance(cloned_transformer, AlternatingLevel):
+                    cloned_transformer.set_params(
+                        last_output_indices=last_level.output_indices_,
+                    )
+                # Find AlternatingLevel objects recursively
+                for param_name, param in last_level.get_params().items():
+                    if isinstance(param, AlternatingLevel):
+                        cloned_transformer.set_params(
+                            **{param_name + "__last_output_indices": param.output_indices_}
+                        )
 
             # Fit or load from cache the current transformer
             if hasattr(cloned_transformer, "transform") or hasattr(
@@ -435,8 +499,7 @@ class Cascade(Pipeline):
             if self._stop_criterion(X, X_val, y, y_val):
                 break
 
-            if isinstance(self.level, list):
-                last_level_slices = fitted_transformer.output_indices_
+            last_level = fitted_transformer
 
         if not final_fit:
             self._trim_levels()
