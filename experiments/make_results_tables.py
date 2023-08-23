@@ -4,9 +4,13 @@ from pathlib import Path
 import warnings
 import yaml
 import pandas as pd
+from tqdm import tqdm
 
 
 def main(estimators: list[str] | None = None):
+    runs_dir = Path("runs")
+    outpath = "results.tsv"
+
     if estimators:
         print(f"Keeping only the following estimators: {estimators}")
 
@@ -22,8 +26,9 @@ def main(estimators: list[str] | None = None):
         # 'cv.params.scoring',
     ]
 
+    print(f"Gathering data from {runs_dir!r}...")
     rows = []
-    for p in Path("runs").glob("*"):
+    for p in tqdm(list(runs_dir.glob("*"))):
         with p.open() as f:
             try:
                 run_data = yaml.unsafe_load(f)
@@ -41,6 +46,7 @@ def main(estimators: list[str] | None = None):
         ]
         rows.append(row)
 
+    print("Building table...")
     df = pd.concat(rows)
 
     #  Keep only the most recent run from each estimator on each dataset
@@ -51,10 +57,12 @@ def main(estimators: list[str] | None = None):
     df.columns = pd.MultiIndex.from_arrays(
         zip_longest(*df.columns.str.split("."), fillvalue="")
     )
+    df = df.dropna(axis="columns")  # Drop failed metrics
     df = df.explode(df.loc[:, ("results", slice(None))].columns.to_list())
     df.insert(0, ("cv", "fold"), df.groupby("hash").cumcount())
 
-    df.to_csv("results.tsv", index=False, sep="\t")
+    df.to_csv(outpath, index=False, sep="\t")
+    print(f"Saved to {outpath!r}.")
 
     return df
 

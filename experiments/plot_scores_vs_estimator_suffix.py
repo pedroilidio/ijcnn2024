@@ -119,7 +119,7 @@ def plot_crossbars(
     annotator.set_pvalues_and_annotate(pvalues)
 
 
-def plot_comparisons(data, x, hue, outdir):
+def plot_comparisons(data, x, hue, block_col, outdir):
     for dataset, dataset_data in data.groupby(("dataset", "name")):
         for metric in dataset_data.results.columns:
             print(f"\n[main] Processing {dataset=} {metric=}\n")
@@ -158,7 +158,7 @@ def plot_comparisons(data, x, hue, outdir):
                 x=x,
                 hue=hue,
                 y=("results", metric),
-                block_col=("cv", "fold"),
+                block_col=block_col,
                 p_adjust="holm",
             )
 
@@ -179,7 +179,7 @@ def plot_comparisons(data, x, hue, outdir):
 def main(outdir=outdir):
     data = pd.read_table("results.tsv", header=[0, 1])
     data[["estimator_name", "estimator_suffix"]] = data.estimator.name.str.rsplit(
-        "__", n=1, expand=True
+        "__", n=1, expand=True,
     )
     data.loc[:, "estimator_suffix"] = data.estimator_suffix.fillna("none")
     data = data.dropna(axis=1, how="all")
@@ -190,6 +190,7 @@ def main(outdir=outdir):
     outdir_name.mkdir(parents=True, exist_ok=True)
     outdir_suffix.mkdir(exist_ok=True)
 
+    # NOTE: Not correct to evaluate each fold independently:
     # joined_datasets = data.copy()
     # joined_datasets[("dataset", "name")] = "all_datasets"
     # joined_datasets[("cv", "fold")] = data.groupby(
@@ -199,18 +200,34 @@ def main(outdir=outdir):
     #     data["results"].groupby(joined_datasets.cv.fold).rank(pct=True)
     # )
 
-    joined_datasets = data.groupby([("dataset", 'name'), ('estimator', 'name')]).mean().rank(pct=True).mean()
+    joined_datasets = (
+        data
+        .groupby([("dataset", 'name'), "estimator_name", "estimator_suffix"])
+        .results
+        .mean()  # Average CV folds
+        .rank(pct=True)
+        .reset_index()
+    )
+    (
+        joined_datasets.loc[:, ("cv", "fold")],
+        joined_datasets.loc[:, ("dataset", "name")],
+    ) = (
+        joined_datasets.dataset.name,
+        "all_datasets",
+    )
 
     plot_comparisons(
         joined_datasets,
         x="estimator_suffix",
         hue="estimator_name",
+        block_col=("cv", "fold"),
         outdir=outdir_suffix,
     )
     plot_comparisons(
         joined_datasets,
         x="estimator_name",
         hue="estimator_suffix",
+        block_col=("cv", "fold"),
         outdir=outdir_name,
     )
 
@@ -218,12 +235,14 @@ def main(outdir=outdir):
         data,
         x="estimator_suffix",
         hue="estimator_name",
+        block_col=("cv", "fold"),
         outdir=outdir_suffix,
     )
     plot_comparisons(
         data,
         x="estimator_name",
         hue="estimator_suffix",
+        block_col=("cv", "fold"),
         outdir=outdir_name,
     )
 

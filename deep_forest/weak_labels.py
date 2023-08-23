@@ -147,10 +147,32 @@ class WeakLabelImputer(BaseSampler, MetaEstimatorMixin):
 
         return new_probas
 
+    def _apply_threshold(self, proba):
+        return np.hstack(
+            [np.max(p, axis=1, keepdims=True) < self.threshold for p in proba]
+        )
+    
+    def _proba_to_pred(self, classifier, proba, n_samples):
+        # Based on sklearn.tree._classes.BaseDecisionTree.predict
+        # (n_samples, n_classes, n_outputs) -> (n_samples, n_outputs, n_classes)
+        proba = np.dstack(proba).transpose(0, 2, 1)
+
+        if classifier.n_outputs_ == 1:
+            return classifier.classes_.take(np.argmax(proba, axis=1), axis=0)
+
+        class_type = classifier.classes_[0].dtype
+        predictions = np.zeros((n_samples, classifier.n_outputs_), dtype=class_type)
+
+        for k in range(classifier.n_outputs_):
+            predictions[:, k] = classifier.classes_[k].take(
+                np.argmax(proba[:, k], axis=1), axis=0
+            )
+
+        return predictions
+
     def fit_resample(self, X, y):
         self._validate_estimator()
         classifier = clone(self.estimator).fit(X, y)
-        y_pred = classifier.predict(X)
         # TODO: use sklearn's check_array
         if y.ndim == 1:
             y = y.reshape(-1, 1)
@@ -166,9 +188,12 @@ class WeakLabelImputer(BaseSampler, MetaEstimatorMixin):
         # Recover true labels for samples with low confidence
         # kept is True for samples with low confidence in all classes, selecting
         # the labels to NOT change
-        kept = np.hstack(
-            [np.max(p, axis=1, keepdims=True) < self.threshold for p in proba]
-        )
+        kept = self._apply_threshold(proba)
+
+        # Take the class with highest probability for each output
+        y_pred = self._proba_to_pred(classifier, proba, y.shape[0])
+        # This would not take weighted proba into account:
+        #   y_pred = classifier.predict(X)  
         
         y = y.reshape(y_pred.shape)
         kept = kept.reshape(y_pred.shape)
@@ -189,3 +214,18 @@ class WeakLabelImputer(BaseSampler, MetaEstimatorMixin):
     def _fit_resample(self, X, y):
         return self.fit_resample(X, y)
     
+
+class PositiveUnlabeledImputer(WeakLabelImputer):
+    def fit_resample(self, X, y):
+        Xt, yt = super().fit_resample(X, y)
+        final_y = (y | yt).astype(int)
+
+        if self.verbose:
+            n_changed = (final_y != y).sum()
+            n_pos = y.sum()
+            print(
+                f"[{self.__class__.__name__}] Imputted {n_changed}/{n_pos:.0f}"
+                f" ({n_changed / n_pos:.2%}) positive labels."
+            )
+        
+        return Xt, final_y

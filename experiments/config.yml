@@ -29,15 +29,15 @@ defaults:
           - jaccard_micro
           - jaccard_weighted
           - jaccard_samples
-          - roc_auc_ovr
-          - roc_auc_ovr_weighted
-          - roc_auc_ovo
-          - roc_auc_ovo_weighted
+          # - roc_auc_ovr
+          # - roc_auc_ovr_weighted
+          # - roc_auc_ovo
+          # - roc_auc_ovo_weighted
           - average_precision
-          - neg_log_loss
+          # - neg_log_loss
           - neg_brier_score
           - accuracy
-          - balanced_accuracy
+          # - balanced_accuracy
           # - matthews_corrcoef
         n_jobs: 5
         cv:
@@ -163,14 +163,24 @@ aliases:
 
 
 runs:
-  - dataset:
+  - wrapper:
+    - null
+    # - drop20
+    # - drop40
+    # - drop50
+    # - drop70
+    - drop80
+    - drop90
+    - drop60
+    - drop30
+    dataset:
     - mediamill  # too big
     - delicious  # too big
     - Corel5k  # too big
-    - tmc2007_500  # already ran
-    - medical  # already ran
-    - scene  # already ran
-    - yeast  # already ran
+    - tmc2007_500  # reference
+    - medical  # reference
+    - scene  # reference
+    - yeast  # reference
     - bibtex
     - birds
     - rcv1subset1
@@ -183,14 +193,38 @@ runs:
     - embedding_weak
     - proba
     - embedding
-    wrapper:
-    # - drop20
-    - drop30
+    active: false
+
+  # Reverse order to run concomitantly (TODO: remove)
+  - wrapper:
     - null
+    # - drop20
     # - drop40
     # - drop50
-    - drop60
     # - drop70
     - drop80
     - drop90
+    - drop60
+    - drop30
+    dataset:
+    - enron
+    - emotions
+    - genbase
+    - rcv1subset1
+    - birds
+    - bibtex
+    - scene  # reference
+    - yeast  # reference
+    - medical  # reference
+    - tmc2007_500  # reference
+    - Corel5k  # too big
+    - delicious  # too big
+    - mediamill  # too big
+    estimator:
+    - embedding_weak_chi2
+    - proba_weak
+    - embedding_weak
+    - proba
+    - embedding
     active: true
+

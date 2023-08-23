@@ -1,6 +1,7 @@
 """Employ tree embeddings and weak-label inputting in deep forest models.
 """
 from numbers import Real, Integral
+import os
 import joblib
 import numpy as np
 from sklearn.datasets import load_iris
@@ -30,13 +31,24 @@ from deep_forest.tree_embedder import (
     ForestEmbedder,
 )
 from deep_forest.cascade import Cascade, AlternatingLevel
-from deep_forest.weak_labels import WeakLabelImputer
+from deep_forest.weak_labels import WeakLabelImputer, PositiveUnlabeledImputer
 from deep_forest.estimator_adapters import ClassifierTransformer, MultiOutputVotingClassifier
 from skmultilearn.model_selection import IterativeStratification
 from _lobpcg_truncated_svd import LOBPCGTruncatedSVD
 import positive_dropper
 
 RSTATE = check_random_state(0)
+NJOBS = 3
+
+for var in [
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "BLIS_NUM_THREADS",
+]:
+    value = NJOBS * 4
+    print(f"Setting environment variable {var}=\"{value}\"")
+    os.environ[var] = str(value)
 
 
 def make_iterative_stratification(**kwargs):
@@ -51,6 +63,7 @@ rf_embedder = ForestEmbedder(
         n_estimators=100,
         max_features="sqrt",
         max_depth=10,
+        n_jobs=NJOBS * 4,  # Less depth, less memory
         random_state=RSTATE,
     ),
     method="path",
@@ -63,6 +76,7 @@ xt_embedder = ForestEmbedder(
         n_estimators=100,
         max_features=1,
         max_depth=10,
+        n_jobs=NJOBS * 4,  # Less depth, less memory
         random_state=RSTATE,
     ),
     method="path",
@@ -78,6 +92,7 @@ final_estimator = MultiOutputVotingClassifier(
                 n_estimators=100,
                 max_features="sqrt",
                 random_state=RSTATE,
+                n_jobs=NJOBS,
             ),
         ),
         (
@@ -86,6 +101,7 @@ final_estimator = MultiOutputVotingClassifier(
                 n_estimators=100,
                 max_features=1,
                 random_state=RSTATE,
+                n_jobs=NJOBS,
             ),
         ),
     ],
@@ -131,22 +147,34 @@ alternating_level_estimator = AlternatingLevel([
     ])),
 ])
 
-weak_label_imputer = WeakLabelImputer(
+weak_label_imputer = PositiveUnlabeledImputer(
     ExtraTreesClassifier(
         n_estimators=100,
         bootstrap=True,
         max_samples=0.9,
         oob_score=True,
         random_state=RSTATE,
+        n_jobs=NJOBS,
+        # This favors positives too much when weight_proba=True
+        #   class_weight="balanced",  
     ),
-    threshold=0.5,
+    threshold=0.95,
     use_oob_proba=True,
     weight_proba=True,
     verbose=True,
 )
 
+level_proba = ClassifierTransformer(
+    final_estimator.set_params(
+        rf__max_depth=10,
+        xt__max_depth=10,
+        rf__n_jobs=NJOBS * 4,
+        xt__n_jobs=NJOBS * 4,
+    )
+)
+
 cascade_proba = Cascade(
-    level=ClassifierTransformer(final_estimator),
+    level=level_proba,
     final_estimator=final_estimator,
     max_levels=10,
     verbose=True,
@@ -162,7 +190,7 @@ cascade_tree_embedder = Cascade(
 )
 
 cascade_weak_label_proba = Cascade(
-    level=ClassifierTransformer(final_estimator),
+    level=level_proba,
     final_estimator=final_estimator,
     inter_level_sampler=weak_label_imputer,
     max_levels=10,
@@ -198,10 +226,11 @@ estimators_dict = {
 }
 
 if __name__ == "__main__":
-    # X, y, _, _ = load_dataset("mediamill", "undivided")
+    X, y, _, _ = load_dataset("mediamill", "undivided")
     # X, y = load_iris(return_X_y=True)
-    X, y, _, _ = load_dataset("yeast", "undivided")
-    X, y = X.toarray(), y.toarray()[:, :1]
+    # X, y, _, _ = load_dataset("yeast", "undivided")
+    X, y = X.toarray(), y.toarray()[:, :3]
+    breakpoint()
     # cascade = cascade_original.fit(X, y)
     # cascade = cascade_tree_embedder.fit(X, y)
     cascade = positive_dropper.wrap_estimator(

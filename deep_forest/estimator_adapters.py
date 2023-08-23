@@ -3,15 +3,22 @@ from sklearn.base import (
     BaseEstimator, MetaEstimatorMixin, TransformerMixin, clone,
     ClassifierMixin,
 )
+from sklearn.utils.metaestimators import _BaseComposition
 from sklearn.utils._param_validation import HasMethods
 from imblearn.base import BaseSampler
 
 
 # MultiOutputVotingClassifier is not yet in scikit-learn
 # https://github.com/scikit-learn/scikit-learn/pull/23603
-class MultiOutputVotingClassifier(BaseEstimator, ClassifierMixin):
+class MultiOutputVotingClassifier(_BaseComposition, ClassifierMixin):
     def __init__(self, estimators):
         self.estimators = estimators
+
+    def get_params(self, deep=True):
+        return self._get_params("estimators", deep=deep)
+
+    def set_params(self, **params):
+        return self._set_params("estimators", **params)
 
     def fit(self, X, y):
         self.estimators_ = [

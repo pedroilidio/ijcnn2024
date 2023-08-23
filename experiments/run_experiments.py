@@ -86,7 +86,13 @@ def load_table(table_data: dict) -> Any:
     path_table = Path(table_data["path"])
 
     # Download file if not found.
-    if not path_table.exists() or table_data["force_download"]:
+    if not path_table.exists() or table_data.get("force_download", False):
+        if "url" not in table_data:
+            raise FileNotFoundError(
+                f"{path_table} does not exist and no source URL was provided."
+                " Please check the dataset's location or provide a value to its 'url'"
+                " attribute in the configuration file."
+            )
         res = requests.get(table_data["url"])
         res.raise_for_status()
         path_table.parent.mkdir(exist_ok=True, parents=True)
@@ -211,7 +217,7 @@ def compute_run_hash(run: dict) -> str:
         run["estimator"]["final_params"],
     )
     cv_params = inspect.signature(load_callable(run["cv"])).bind_partial(
-        run["cv"]["params"]
+        **run["cv"]["params"]
     )
     cv_params.apply_defaults()
     cv_params = omit_not_builtin_params(cv_params.arguments)
@@ -271,13 +277,11 @@ def execute_run(
     run["start"] = datetime.now()
 
     cv_data = run["cv"].copy()
-    # cv_data["params"]["pairwise"] = (
-    #     cv_data["params"].get("pairwise") or run["dataset"]["pairwise"]
-    # )
     cv_function = load_callable(cv_data)
-
     dataset = load_dataset(run["dataset"])
     estimator = load_estimator(run["estimator"])
+
+    # FIXME: There must be a better way to do this.
     if "modify_params" in run:
         estimator.set_params(**run["modify_params"])
         param_suffix = "_".join(str(p) for p in run["modify_params"].values())
@@ -299,14 +303,20 @@ def execute_run(
 
     if not allow_redundant_runs:
         try:
-            next(outdir.rglob(f"{run['hash'][:7]}*.yml"))
+            # FIXME: current hashes need to be recalculated.
+            # next(outdir.rglob(f"{run['hash'][:7]}*.yml"))
+            next(
+                outdir.rglob(
+                    f"*{run['estimator']['name']}_{run['dataset']['name']}*.yml"
+                )
+            )
         except StopIteration:
             pass
         else:
             logging.warning(
                 "A run with same parameters (estimator="
                 f"{run['estimator']['name']}, dataset={run['dataset']['name']}"
-                f", hash={run['hash']}) is already "
+                f", hash={run['hash'][:7]}) is already "
                 f"present in {outdir}. Pass --allow-redundant-runs if you "
                 "intend to keep all of them."
             )
