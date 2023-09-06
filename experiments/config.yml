@@ -2,6 +2,10 @@ defaults:
   aliases:
     estimator:
       params: {}
+    dataset:
+      call: run_cascades.load_dataset_wrapper
+      params:
+        min_positives: 15  # Minimum number of positive labels at each column
 
   runs:
     active: false
@@ -29,14 +33,14 @@ defaults:
           - jaccard_micro
           - jaccard_weighted
           - jaccard_samples
+          - accuracy
           # - roc_auc_ovr
           # - roc_auc_ovr_weighted
           # - roc_auc_ovo
           # - roc_auc_ovo_weighted
-          - average_precision
+          # - average_precision
           # - neg_log_loss
-          - neg_brier_score
-          - accuracy
+          # - neg_brier_score
           # - balanced_accuracy
           # - matthews_corrcoef
         n_jobs: 5
@@ -48,62 +52,55 @@ defaults:
 aliases:
   dataset:
   - name: genbase
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: genbase
   
   - name: Corel5k
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: Corel5k
   - name: bibtex
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: bibtex
   - name: birds
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: birds
   - name: delicious
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: delicious
   - name: emotions
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: emotions
   - name: enron
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: enron
   - name: mediamill
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: mediamill
   - name: medical
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: medical
   - name: rcv1subset1
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: rcv1subset1
-
-  # 'rcv1subset2',
-  # 'rcv1subset3',
-  # 'rcv1subset4',
-  # 'rcv1subset5',
-
+  - name: rcv1subset2
+    params:
+      dataset: rcv1subset2
+  - name: rcv1subset3
+    params:
+      dataset: rcv1subset3
+  - name: rcv1subset4
+    params:
+      dataset: rcv1subset4
+  - name: rcv1subset5
+    params:
+      dataset: rcv1subset5
   - name: scene
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: scene
   - name: tmc2007_500
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: tmc2007_500
   - name: yeast
-    call: run_cascades.load_dataset_wrapper
     params:
       dataset: yeast
 
@@ -169,57 +166,28 @@ runs:
     # - drop40
     # - drop50
     # - drop70
-    - drop80
-    - drop90
     - drop60
     - drop30
+    - drop80
+    - drop90
     dataset:
-    - mediamill  # too big
-    - delicious  # too big
-    - Corel5k  # too big
-    - tmc2007_500  # reference
     - medical  # reference
     - scene  # reference
     - yeast  # reference
-    - bibtex
-    - birds
-    - rcv1subset1
-    - genbase
-    - emotions
-    - enron
-    estimator:
-    - embedding_weak_chi2
-    - proba_weak
-    - embedding_weak
-    - proba
-    - embedding
-    active: false
-
-  # Reverse order to run concomitantly (TODO: remove)
-  - wrapper:
-    - null
-    # - drop20
-    # - drop40
-    # - drop50
-    # - drop70
-    - drop80
-    - drop90
-    - drop60
-    - drop30
-    dataset:
-    - enron
-    - emotions
-    - genbase
-    - rcv1subset1
-    - birds
-    - bibtex
-    - scene  # reference
-    - yeast  # reference
-    - medical  # reference
     - tmc2007_500  # reference
-    - Corel5k  # too big
+    - genbase
+    - enron
+    - birds
+    - bibtex
+    - emotions
+    - Corel5k
     - delicious  # too big
     - mediamill  # too big
+    - rcv1subset1
+    - rcv1subset2
+    - rcv1subset3
+    - rcv1subset4
+    - rcv1subset5
     estimator:
     - embedding_weak_chi2
     - proba_weak
@@ -227,4 +195,3 @@ runs:
     - proba
     - embedding
     active: true
-

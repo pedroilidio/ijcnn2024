@@ -47,11 +47,13 @@ def main(estimators: list[str] | None = None):
         rows.append(row)
 
     print("Building table...")
-    df = pd.concat(rows)
+    df = pd.concat(rows, sort=False)
 
     #  Keep only the most recent run from each estimator on each dataset
     df = df.sort_values("start").drop_duplicates(  # TODO: sort within groups
-        ["dataset.name", "estimator.name"], keep="last"
+        ["dataset.name", "estimator.name"],
+        keep="last",
+        ignore_index=True,
     )
     # Use MultiIndex instead of column names such as "dataset.name"
     df.columns = pd.MultiIndex.from_arrays(
@@ -59,7 +61,7 @@ def main(estimators: list[str] | None = None):
     )
     df = df.dropna(axis="columns")  # Drop failed metrics
     df = df.explode(df.loc[:, ("results", slice(None))].columns.to_list())
-    df.insert(0, ("cv", "fold"), df.groupby("hash").cumcount())
+    df.insert(0, ("cv", "fold"), df.groupby(df.index).cumcount())
 
     df.to_csv(outpath, index=False, sep="\t")
     print(f"Saved to {outpath!r}.")

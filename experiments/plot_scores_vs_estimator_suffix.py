@@ -4,6 +4,7 @@ from pathlib import Path
 import scipy.stats
 import pandas as pd
 import seaborn as sns
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scikit_posthocs as sp
 from statannotations.Annotator import Annotator
@@ -119,7 +120,7 @@ def plot_crossbars(
     annotator.set_pvalues_and_annotate(pvalues)
 
 
-def plot_comparisons(data, x, hue, block_col, outdir):
+def plot_comparisons(data, x, hue, outdir):
     for dataset, dataset_data in data.groupby(("dataset", "name")):
         for metric in dataset_data.results.columns:
             print(f"\n[main] Processing {dataset=} {metric=}\n")
@@ -158,7 +159,7 @@ def plot_comparisons(data, x, hue, block_col, outdir):
                 x=x,
                 hue=hue,
                 y=("results", metric),
-                block_col=block_col,
+                block_col=("cv", "fold"),
                 p_adjust="holm",
             )
 
@@ -179,10 +180,8 @@ def plot_comparisons(data, x, hue, block_col, outdir):
 def main(outdir=outdir):
     data = pd.read_table("results.tsv", header=[0, 1])
     data[["estimator_name", "estimator_suffix"]] = data.estimator.name.str.rsplit(
-        "__", n=1, expand=True,
-    )
-    data.loc[:, "estimator_suffix"] = data.estimator_suffix.fillna("none")
-    data = data.dropna(axis=1, how="all")
+        "__", n=1
+    ).apply(pd.Series)
 
     outdir_name = outdir / "estimator_name"
     outdir_suffix = outdir / "estimator_suffix"
@@ -190,59 +189,38 @@ def main(outdir=outdir):
     outdir_name.mkdir(parents=True, exist_ok=True)
     outdir_suffix.mkdir(exist_ok=True)
 
-    # NOTE: Not correct to evaluate each fold independently:
-    # joined_datasets = data.copy()
-    # joined_datasets[("dataset", "name")] = "all_datasets"
-    # joined_datasets[("cv", "fold")] = data.groupby(
-    #     [("dataset", "name"), ("cv", "fold")]
-    # ).ngroup()
-    # joined_datasets["results"] = (
-    #     data["results"].groupby(joined_datasets.cv.fold).rank(pct=True)
-    # )
-
-    joined_datasets = (
-        data
-        .groupby([("dataset", 'name'), "estimator_name", "estimator_suffix"])
-        .results
-        .mean()  # Average CV folds
-        .rank(pct=True)
-        .reset_index()
-    )
-    (
-        joined_datasets.loc[:, ("cv", "fold")],
-        joined_datasets.loc[:, ("dataset", "name")],
-    ) = (
-        joined_datasets.dataset.name,
-        "all_datasets",
+    joined_datasets = data.copy()
+    joined_datasets[("dataset", "name")] = "all_datasets"
+    joined_datasets[("cv", "fold")] = data.groupby(
+        [("dataset", "name"), ("cv", "fold")]
+    ).ngroup()
+    joined_datasets["results"] = (
+        data["results"].groupby(joined_datasets.cv.fold).rank(pct=True)
     )
 
     plot_comparisons(
-        joined_datasets,
+        data,
         x="estimator_suffix",
         hue="estimator_name",
-        block_col=("cv", "fold"),
         outdir=outdir_suffix,
     )
     plot_comparisons(
-        joined_datasets,
+        data,
         x="estimator_name",
         hue="estimator_suffix",
-        block_col=("cv", "fold"),
         outdir=outdir_name,
     )
 
     plot_comparisons(
-        data,
+        joined_datasets,
         x="estimator_suffix",
         hue="estimator_name",
-        block_col=("cv", "fold"),
         outdir=outdir_suffix,
     )
     plot_comparisons(
-        data,
+        joined_datasets,
         x="estimator_name",
         hue="estimator_suffix",
-        block_col=("cv", "fold"),
         outdir=outdir_name,
     )
 

@@ -1,16 +1,17 @@
 import argparse
 import itertools
+import pickle
 import warnings
-import numpy as np
-import pandas as pd
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 import scikit_posthocs as sp
-
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 from critical_difference_diagrams import (
     plot_critical_difference_diagram,
     _find_maximal_cliques,
@@ -88,9 +89,27 @@ def make_latex_table(
     )
 
     table = data.set_index(block_col).groupby(group_col)[metric].agg(["mean", "std"]).T
-    text_table = (
-        table.round(round_digits).astype(str).apply(lambda r: "{} ({})".format(*r))
+
+    percentile_ranks = data.groupby(block_col)[metric].rank(pct=True)
+    is_victory = percentile_ranks == 1
+
+    percentile_ranks_stats = (
+        percentile_ranks.groupby(data[group_col]).agg(["mean", "std"]).T
     )
+    is_victory_stats = (
+        is_victory.groupby(data[group_col]).agg(["mean", "std"]).T
+    )  # How many times was this estimator the best?
+
+    text_table = {}
+    for row, row_name in (
+        (table, metric),
+        (percentile_ranks_stats, metric + "_rank"),
+        (is_victory_stats, metric + "_victories"),
+    ):
+        text_table[row_name] = (
+            row.round(round_digits).astype(str).apply(lambda r: "{} ({})".format(*r))
+        )
+    text_table = pd.concat(text_table).reorder_levels([1, 0]).sort_index()
 
     if not highlight_best:
         return text_table
@@ -109,10 +128,16 @@ def make_latex_table(
     )
 
     # Highlight top-ranked set, if it is not the only set
-    if len(top_crossbar_set) < len(text_table):
-        text_table[top_crossbar_set] = text_table[top_crossbar_set].apply(
-            lambda s: f"\\textbf{{{s}}}"
-        )
+    if len(top_crossbar_set) < len(adj_matrix):
+        ### latex
+        # text_table.loc[(top_crossbar_set, slice(None))] = text_table[
+        #     top_crossbar_set
+        # ].apply(lambda s: f"\\textbf{{{s}}}")
+
+        ### html
+        text_table.loc[(top_crossbar_set, slice(None))] = text_table[
+            top_crossbar_set
+        ].apply(lambda s: f"<b>{s}</b>")
 
     return text_table
 
@@ -126,27 +151,47 @@ def iter_posthoc_comparisons(
     p_adjust,
 ):
     all_blocks = set(data[block_col].unique())
-    missing_blocks = (
-        data.groupby(group_col)[block_col].unique().apply(lambda x: all_blocks - set(x))
-    )
-    missing_blocks = missing_blocks.loc[missing_blocks.apply(len) != 0]
 
-    if not missing_blocks.empty:
+    estimators_per_fold = data.groupby(block_col)[group_col].count()
+    folds_to_drop = estimators_per_fold[estimators_per_fold < estimators_per_fold.max()].index
+    if not folds_to_drop.empty:  # FIXME: explain
         warnings.warn(
             "The following groups have missing blocks and will be removed"
-            f" from the comparison analysis:\n{missing_blocks}"
+            f" from the comparison analysis:\n{folds_to_drop}"
         )
-        data = data[~data[group_col].isin(missing_blocks.index)]
+        data = data[~data[block_col].isin(folds_to_drop)]
+
+    # missing_blocks = (
+    #     data.groupby(group_col)[block_col].unique().apply(lambda x: all_blocks - set(x))
+    # )
+    # missing_blocks = missing_blocks.loc[missing_blocks.apply(len) != 0]
+
+    # if not missing_blocks.empty:
+    #     warnings.warn(
+    #         "The following groups have missing blocks and will be removed"
+    #         f" from the comparison analysis:\n{missing_blocks}"
+    #     )
+    #     data = data[~data[group_col].isin(missing_blocks.index)]
+
+    groups = data[group_col].unique()
+    n_groups = len(groups)
 
     for metric in y_cols:
         print("- Processing metric:", metric)
-        pvalue_crosstable = sp.posthoc_conover_friedman(
+        if n_groups <= 1:
+            warnings.warn(
+                f"Skipping {metric} because there are not enough groups "
+                f"({n_groups}) to perform a test statistic."
+            )
+            continue
+        pvalue_crosstable = sp.posthoc_nemenyi_friedman(
+        # pvalue_crosstable = sp.posthoc_conover_friedman(
             data,
             melted=True,
             y_col=metric,
             group_col=group_col,
             block_col=block_col,
-            p_adjust=p_adjust,
+            # p_adjust=p_adjust,
         )
         mean_ranks = (
             data.set_index([block_col, group_col])[metric]
@@ -173,7 +218,7 @@ def make_visualizations(
     n_groups = pvalue_crosstable.shape[0]
 
     plt.figure(figsize=[(n_groups + 2) / 2.54] * 2)
-    plt.title(f"{metric} (p = {omnibus_pvalue:.2e})", wrap=True)
+    plt.title(f"{metric}\np = {omnibus_pvalue:.2e}", wrap=True)
     ax, cbar = sp.sign_plot(
         pvalue_crosstable,
         annot=sp.sign_table(pvalue_crosstable),
@@ -184,8 +229,13 @@ def make_visualizations(
     plt.tight_layout()
     plt.savefig(
         outdir / (f"{prefix}__{metric}.png"),
-        transparent=True,
+        # transparent=True,
         # bbox_inches='tight',  # Allow for title wrapping
+    )
+    plt.savefig(
+        outdir / (f"{prefix}__{metric}.pdf"),
+        transparent=True,
+        bbox_inches="tight",
     )
     plt.close()
 
@@ -195,12 +245,15 @@ def make_visualizations(
         pvalue_crosstable,
         crossbar_props={"marker": "."},
     )
-    plt.title(f"{metric} (p = {omnibus_pvalue:.2e})", wrap=True)
+    plt.title(f"{metric}\np = {omnibus_pvalue:.2e}", wrap=True)
     plt.tight_layout()
     plt.savefig(
         outdir / (f"{prefix}__cdd__{metric}.png"),
+    )
+    plt.savefig(
+        outdir / (f"{prefix}__cdd__{metric}.pdf"),
         transparent=True,
-        # bbox_inches='tight',  # Allow for title wrapping
+        bbox_inches="tight",
     )
     plt.close()
 
@@ -226,12 +279,15 @@ def make_visualizations(
         sig_matrix=pvalue_crosstable,
     )
     plt.xticks(rotation=45, ha="right")
-    plt.title(f"{metric} (p = {omnibus_pvalue:.2e})", wrap=True)
+    plt.title(f"{metric}\np = {omnibus_pvalue:.2e}", wrap=True)
     plt.tight_layout()
     plt.savefig(
         outdir / (f"{prefix}__boxplot__{metric}.png"),
+    )
+    plt.savefig(
+        outdir / (f"{prefix}__boxplot__{metric}.pdf"),
         transparent=True,
-        # bbox_inches='tight',  # Allow for title wrapping
+        bbox_inches="tight",
     )
     plt.close()
 
@@ -240,9 +296,23 @@ def friedman_melted(data, *, index, columns, values):
     # Expand ("unmelt") to 1 fold per column on level 2, metrics on level 1
     pivot = data.pivot(index=index, columns=columns, values=values)
 
+    if pivot.shape[0] < 3:
+        warnings.warn(
+            f"Dataset {data.name} has only {pivot.shape[0]} estimators, "
+            "which is not enough for a Friedman test."
+        )
+        result = pd.DataFrame(
+            index=np.unique(pivot.columns.get_level_values(0)),
+            columns=["statistic", "pvalue"],
+            dtype=float,
+        )
+        result["statistic"] = np.nan
+        result["pvalue"] = 1.0
+        return result
+
     # Apply Friedman's test for each result metric
     result = (
-        pivot.groupby(level=1, axis=1)
+        pivot.groupby(level=0, axis=1)
         .apply(lambda x: stats.friedmanchisquare(*(x.values))._asdict())
         .apply(pd.Series)
     )  # Convert dicts to rows
@@ -261,7 +331,11 @@ def plot_comparison_matrix(comparison_data: pd.DataFrame):
     sns.heatmap(comparison_table.effect_size, annot=True)
 
 
-def main(estimator_subset=None, dataset_subset=None, metric_subset=None):
+def plot_everything(
+    estimator_subset=None,
+    dataset_subset=None,
+    metric_subset=None,
+):
     df = pd.read_table("results.tsv", header=[0, 1])
 
     if estimator_subset is not None:
@@ -269,99 +343,86 @@ def main(estimator_subset=None, dataset_subset=None, metric_subset=None):
     if dataset_subset is not None:
         df = df[df[("dataset", "name")].isin(dataset_subset)]
     if metric_subset is not None:
-        # FIXME
-        df.results = df.results.loc[:, 
-            df.results.columns
-            .str.removeprefix("train_")
-            .str.removeprefix("test_")
-            .isin(metric_subset)
-        ]
+        df = df.loc[:, [c[0] != "results" or c[1] in metric_subset for c in df.columns]]
 
-    df["dataset_fold"] = (
-        df[("dataset", "name")] + "_fold" + df[("cv", "fold")].astype(str)
+    df2 = df.results.copy().dropna(axis=1, how="all")
+    df2["estimator"] = df[("estimator", "name")]
+    df2["dataset"] = df[("dataset", "name")]
+    df2["fold"] = df[("cv", "fold")]
+    # FIXME: SPOILS THE ALL_DATASETS DATAFRAME
+    # HACK: Add a suffix to the dataset name to distinguish between different
+    #       positive dropout ratios. The dropout is originally in the estimator
+    #       name, e.g. "random_forest__drop20".
+    # df2.loc[:, "dataset"] = (
+    #     df2.dataset + "__" + df2.estimator.str.split("__").str[1].fillna("drop0")
+    # )
+    # df2.loc[:, "estimator"] = df2.estimator.str.split("__").str[0]
+
+    # Not in one line to enable str_accessor[1] even if all splits generate a
+    # single element
+    str_accessor = df2.estimator.str.split("__").str
+    df2["estimator"] = str_accessor[0]
+    df2["dropout"] = str_accessor[1].fillna("drop0")  
+
+    df2 = df2.loc[df2.dropout == "drop0"]  # FIXME: consider dropouts
+
+    max_estimators_per_dataset = df2.groupby("dataset").estimator.nunique().max()
+    max_folds_per_estimator = df2.groupby(["dataset", "estimator"]).fold.nunique().max()
+
+    allsets_data = (
+        df2
+        # Consider only datasets with all the estimators
+        .groupby("dataset")
+        .filter(lambda x: x.estimator.nunique() == max_estimators_per_dataset)
     )
-    df = df.dropna(axis=1, how="all")
+    discarded_datasets = set(df2.dataset.unique()) - set(allsets_data.dataset.unique())
 
-    average_rank = (
-        df.set_index(["dataset_fold", ("estimator", "name")])
-        .results.groupby(level=0)  # by dataset and CV fold
-        .rank(pct=True)
-        .groupby(level=1)  # by estimator
-        .mean()
-        .T
-    )
-    average_rank.index.name = "score"
-    average_rank.to_csv("average_rank.tsv", sep="\t")
-
-    # Plot average ranks
-    plt.figure(
-        figsize=(
-            average_rank.shape[1] * 2 / 2.54 + 1,
-            average_rank.shape[0] / 2.54 + 1,
+    if discarded_datasets:
+        print(
+            "The following datasets were not present for all estimators and"
+            " will not be considered for rankings across all datasets:"
+            f" {discarded_datasets}"
         )
-    )
-    sns.heatmap(average_rank, annot=True)
-    plt.tight_layout()
-    plt.savefig(
-        "average_rank.png",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close()
 
-    average_rank_of_median = (
-        df.set_index([("dataset", "name"), ("estimator", "name")])
-        .results.groupby(level=(0, 1))  # by dataset and estimator
-        .median()
-        .groupby(level=0)  # by dataset
-        .rank(pct=True)
-        .groupby(level=1)  # by estimator
-        .mean()
-        .T
+    allsets_data = (
+        allsets_data
+        # Consider only estimators with all the CV folds
+        .groupby(["dataset", "estimator"])
+        .filter(lambda x: x.fold.nunique() == max_folds_per_estimator)
     )
-    average_rank_of_median.index.name = "score"
-    average_rank_of_median.to_csv("average_rank_of_median.tsv", sep="\t")
+    discarded_runs = (
+        set(df2[["dataset", "estimator"]])
+        - set(allsets_data[["dataset", "estimator"]])
+    )
 
-    # Plot average median ranks
-    plt.figure(
-        figsize=(
-            average_rank_of_median.shape[1] * 2 / 2.54 + 1,
-            average_rank_of_median.shape[0] / 2.54 + 1,
+    if discarded_runs:
+        print(
+            "The following runs were not present for all CV folds and"
+            " will not be considered for rankings across all datasets:"
+            f" {discarded_runs}"
         )
-    )
-    sns.heatmap(average_rank_of_median, annot=True)
-    plt.tight_layout()
-    plt.savefig(
-        "average_rank_of_median.png",
-        bbox_inches="tight",
-        transparent=True,
-    )
-    plt.close()
 
-    # Calculate omnibus Friedman statistics
-    allsets_friedman_statistics = friedman_melted(
-        df,
-        index=[("estimator", "name")],
-        columns=["dataset_fold"],
-        values=df.loc[:, ("results", slice(None))].columns,
+    allsets_data = (
+        allsets_data
+        .set_index(["dataset", "fold", "estimator"])  # Keep columns
+        .groupby(level=[0, 1])  # groupby(["dataset", "fold"])
+        .rank(pct=True)  # Rank estimators per fold
+        .groupby(level=[0, 2])  # groupby(["dataset", "estimator"])
+        .mean()  # Average ranks across folds for each estimator
+        .rename_axis(index=["fold", "estimator"])  # 'dataset' -> 'fold'
+        .reset_index()
+        .assign(dataset="all_datasets")
     )
-    # Set new level and level names to match the tables per training set that
-    # we will generate later.
-    allsets_friedman_statistics = pd.concat(
-        {"all_datasets": allsets_friedman_statistics},
-        names=["dataset", "score"],
-    )
+
+    df2 = pd.concat([allsets_data, df2], ignore_index=True, sort=False)
 
     # Calculate omnibus Friedman statistics per dataset
-    friedman_statistics = df.groupby(("dataset", "name")).apply(
+    friedman_statistics = df2.groupby("dataset").apply(
         friedman_melted,
-        index=[("estimator", "name")],
-        columns=[("cv", "fold")],
-        values=df.loc[:, ("results", slice(None))].columns,
+        columns="fold",
+        index="estimator",
+        values=df.results.columns,
     )
-    friedman_statistics.index = friedman_statistics.index.rename(["dataset", "score"])
-
-    friedman_statistics = pd.concat([allsets_friedman_statistics, friedman_statistics])
     friedman_statistics["corrected_p"] = multipletests(
         friedman_statistics.pvalue.values,
         method="holm",
@@ -372,33 +433,8 @@ def main(estimator_subset=None, dataset_subset=None, metric_subset=None):
     outdir = Path("post_hoc")
     outdir.mkdir(exist_ok=True)
 
-    df2 = df.results.copy()
-    df2["estimator"] = df[("estimator", "name")]
-    df2["dataset_fold"] = df[("dataset_fold", "")]
-    df2["dataset"] = df[("dataset", "name")]
-    df2["fold"] = df[("cv", "fold")]
-
-    print("Processing joined datasets statistics")
-    for metric, pvalue_crosstable, mean_ranks in iter_posthoc_comparisons(
-        df2,
-        y_cols=df.results.columns,
-        group_col="estimator",
-        block_col="dataset",
-        # block_col="dataset_fold",
-        p_adjust="holm",
-    ):
-        make_visualizations(
-            data=df2,
-            metric=metric,
-            pvalue_crosstable=pvalue_crosstable,
-            mean_ranks=mean_ranks,
-            group_col="estimator",
-            outdir=outdir,
-            prefix="all_datasets",
-            omnibus_pvalue=(
-                allsets_friedman_statistics.loc["all_datasets", metric].pvalue
-            ),
-        )
+    df2 = df2.dropna(axis=1, how="all")  # FIXME: something is bringing nans back
+    metric_names = df.results.columns.intersection(df2.columns)
 
     latex_lines = []
 
@@ -407,12 +443,13 @@ def main(estimator_subset=None, dataset_subset=None, metric_subset=None):
         print("Processing", dataset_name)
         for metric, pvalue_crosstable, mean_ranks in iter_posthoc_comparisons(
             dataset_group,
-            y_cols=df.results.columns,
+            y_cols=metric_names,
             group_col="estimator",
             block_col="fold",  # different from the above will all sets
             p_adjust="holm",
         ):
             omnibus_pvalue = friedman_statistics.loc[dataset_name, metric].pvalue
+
             make_visualizations(
                 data=dataset_group,
                 metric=metric,
@@ -433,15 +470,22 @@ def main(estimator_subset=None, dataset_subset=None, metric_subset=None):
                 round_digits=2,
                 highlight_best=(omnibus_pvalue < 0.05),
                 higher_is_better=not metric.endswith("time"),
-            ).rename(metric)
-            latex_line["dataset"] = dataset_name
+            )
+
+            # latex_lines[(dataset_name, metric)] = latex_line
+            latex_line = pd.concat({dataset_name: latex_line}, names=["dataset"])
             latex_lines.append(latex_line)
 
-    latex_table = pd.concat(latex_lines, axis=1).T.pivot(columns="dataset").T
+    latex_table = (
+        pd.concat(latex_lines)
+        .rename_axis(["dataset", "estimator", "score"])
+        .unstack(level=2)
+    )  # Set metrics as columns
     latex_table.to_csv("latex_table.tsv", sep="\t")
+    latex_table.to_html("latex_table.html", escape=False)
 
 
-def parse_arguments():
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--estimators",
@@ -458,13 +502,14 @@ def parse_arguments():
         nargs="+",
         help="Metrics to include in the analysis",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
 
-
-if __name__ == "__main__":
-    args = parse_arguments()
-    main(
+    plot_everything(
         estimator_subset=args.estimators,
         dataset_subset=args.datasets,
         metric_subset=args.metrics,
     )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,16 +1,36 @@
-import numpy as np
 from pathlib import Path
+import warnings
+
+import numpy as np
 from yaml import dump
 from sklearn.model_selection import cross_validate, StratifiedKFold
 from skmultilearn.dataset import load_dataset
-from estimators import estimators_dict
 from skmultilearn.model_selection import IterativeStratification
 
+from estimators import estimators_dict
 
-def load_dataset_wrapper(dataset):
+
+def load_dataset_wrapper(dataset, min_positives: int | float = False):
     X, y, _, _ = load_dataset(dataset, "undivided")
-    return dict(X=X.toarray(), y=y.toarray())
+    X, y = X.toarray(), y.toarray()
 
+    if isinstance(min_positives, float):
+        min_positives =  int(np.ceil(min_positives * y.shape[0]))
+    if min_positives:
+        warnings.warn(
+            f"Label columns {np.where(y.sum(axis=0) > min_positives)[0].tolist()}"
+            f" of dataset {dataset!r} (which had {y.shape[0]} labels in total) have"
+            f" less than {min_positives} positives. Dropping them during loading."
+        )
+        y = y[:, y.sum(axis=0) >= min_positives]
+
+        if y.shape[1] == 0:
+            raise ValueError(
+                f"None of the label columns of dataset {dataset!r} had more than"
+                f" {min_positives} positives."
+            )
+
+    return dict(X=X, y=y)
 
 datasets = [
     'Corel5k',

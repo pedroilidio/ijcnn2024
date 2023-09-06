@@ -435,6 +435,7 @@ def main(
     raise_errors: bool = False,
     allow_redundant_runs: bool = False,
 ) -> None:
+    logging.captureWarnings(True)
     logging.basicConfig(
         level=log_level,
         format="* [%(levelname)s] %(asctime)s: %(message)s",

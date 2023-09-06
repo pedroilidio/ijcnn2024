@@ -155,10 +155,12 @@ weak_label_imputer = PositiveUnlabeledImputer(
         oob_score=True,
         random_state=RSTATE,
         n_jobs=NJOBS,
+        max_depth=10,  # Less depth, less memory
         # This favors positives too much when weight_proba=True
         #   class_weight="balanced",  
     ),
-    threshold=0.95,
+    # threshold=0.95,  # if max_depth=None
+    threshold=0.8,
     use_oob_proba=True,
     weight_proba=True,
     verbose=True,
@@ -220,22 +222,25 @@ cascade_weak_label_tree_embedder_pvalue = Cascade(
 )
 
 estimators_dict = {
-    # "cascade_original": cascade_original,
+    "cascade_proba": cascade_proba,
     "cascade_tree_embedder": cascade_tree_embedder,
-    # "cascade_weak_label_tree_embedder": cascade_weak_label_tree_embedder,
+    "cascade_weak_label_proba": cascade_weak_label_proba,
+    "cascade_weak_label_tree_embedder": cascade_weak_label_tree_embedder,
+    "cascade_weak_label_tree_embedder_pvalue": cascade_weak_label_tree_embedder_pvalue,
 }
 
 if __name__ == "__main__":
-    X, y, _, _ = load_dataset("mediamill", "undivided")
+    # X, y, _, _ = load_dataset("mediamill", "undivided")
+    X, y, _, _ = load_dataset("delicious", "undivided")
     # X, y = load_iris(return_X_y=True)
     # X, y, _, _ = load_dataset("yeast", "undivided")
-    X, y = X.toarray(), y.toarray()[:, :3]
-    breakpoint()
+    X, y = X.toarray(), y.toarray()
+    # breakpoint()
     # cascade = cascade_original.fit(X, y)
     # cascade = cascade_tree_embedder.fit(X, y)
     cascade = positive_dropper.wrap_estimator(
-        cascade_weak_label_tree_embedder_pvalue,
-        drop=0.5,
+        cascade_weak_label_proba,
+        drop=0.25,
         random_state=RSTATE,
     )
     cascade = cascade.fit(X, y)
