@@ -213,7 +213,7 @@ def make_visualizations(
     metric,
     omnibus_pvalue,
 ):
-    pvalue_crosstable.to_csv(outdir / (f"{prefix}__{metric}.tsv"), sep="\t")
+    pvalue_crosstable.to_csv(outdir / (f"{prefix}__sigmatrix__{metric}.tsv"), sep="\t")
 
     n_groups = pvalue_crosstable.shape[0]
 
@@ -364,19 +364,21 @@ def plot_everything(
     df2["estimator"] = str_accessor[0]
     df2["dropout"] = str_accessor[1].fillna("drop0")  
 
-    df2 = df2.loc[df2.dropout == "drop0"]  # FIXME: consider dropouts
+    # df2 = df2.loc[df2.dropout == "drop0"]  # FIXME: consider dropouts
 
-    max_estimators_per_dataset = df2.groupby("dataset").estimator.nunique().max()
-    max_folds_per_estimator = df2.groupby(["dataset", "estimator"]).fold.nunique().max()
+    max_estimators_per_dataset = df2.groupby(["dataset", "dropout"]).estimator.nunique().max()
+    max_folds_per_estimator = df2.groupby(["dataset", "dropout", "estimator"]).fold.nunique().max()
 
     allsets_data = (
         df2
         # Consider only datasets with all the estimators
-        .groupby("dataset")
+        .groupby(["dataset", "dropout"])
         .filter(lambda x: x.estimator.nunique() == max_estimators_per_dataset)
     )
-    discarded_datasets = set(df2.dataset.unique()) - set(allsets_data.dataset.unique())
-
+    discarded_datasets = (
+        set(df2[["dataset", "dropout"]].itertuples(index=False))
+        - set(allsets_data[["dataset", "dropout"]].itertuples(index=False))
+    )
     if discarded_datasets:
         print(
             "The following datasets were not present for all estimators and"
@@ -387,14 +389,13 @@ def plot_everything(
     allsets_data = (
         allsets_data
         # Consider only estimators with all the CV folds
-        .groupby(["dataset", "estimator"])
+        .groupby(["dataset", "dropout", "estimator"])
         .filter(lambda x: x.fold.nunique() == max_folds_per_estimator)
     )
     discarded_runs = (
-        set(df2[["dataset", "estimator"]])
-        - set(allsets_data[["dataset", "estimator"]])
+        set(df2[["dataset", "dropout", "estimator"]].itertuples(index=False))
+        - set(allsets_data[["dataset", "dropout", "estimator"]].itertuples(index=False))
     )
-
     if discarded_runs:
         print(
             "The following runs were not present for all CV folds and"
@@ -404,17 +405,19 @@ def plot_everything(
 
     allsets_data = (
         allsets_data
-        .set_index(["dataset", "fold", "estimator"])  # Keep columns
-        .groupby(level=[0, 1])  # groupby(["dataset", "fold"])
+        .set_index(["dataset", "dropout", "fold", "estimator"])  # Keep columns
+        .groupby(level=[0, 1, 2])  # groupby(["dataset", "fold"])
         .rank(pct=True)  # Rank estimators per fold
-        .groupby(level=[0, 2])  # groupby(["dataset", "estimator"])
+        .groupby(level=[0, 1, 3])  # groupby(["dataset", "estimator"])
         .mean()  # Average ranks across folds for each estimator
-        .rename_axis(index=["fold", "estimator"])  # 'dataset' -> 'fold'
+        .rename_axis(index=["fold", "dropout", "estimator"])  # 'dataset' -> 'fold'
         .reset_index()
         .assign(dataset="all_datasets")
     )
 
     df2 = pd.concat([allsets_data, df2], ignore_index=True, sort=False)
+
+    df2["dataset"] = df2.dataset + "__" + df2.dropout  # HACK
 
     # Calculate omnibus Friedman statistics per dataset
     friedman_statistics = df2.groupby("dataset").apply(
@@ -430,8 +433,7 @@ def plot_everything(
 
     friedman_statistics.to_csv("test_statistics.tsv", sep="\t")
 
-    outdir = Path("post_hoc")
-    outdir.mkdir(exist_ok=True)
+    main_outdir = Path("statistical_comparisons")
 
     df2 = df2.dropna(axis=1, how="all")  # FIXME: something is bringing nans back
     metric_names = df.results.columns.intersection(df2.columns)
@@ -441,6 +443,9 @@ def plot_everything(
     # Make visualizations of pairwise estimator comparisons.
     for dataset_name, dataset_group in df2.groupby("dataset"):
         print("Processing", dataset_name)
+        outdir = main_outdir / dataset_name
+        outdir.mkdir(exist_ok=True, parents=True)
+
         for metric, pvalue_crosstable, mean_ranks in iter_posthoc_comparisons(
             dataset_group,
             y_cols=metric_names,

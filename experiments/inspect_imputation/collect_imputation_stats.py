@@ -45,11 +45,6 @@ SCORING = [
 ]
 
 
-def load_dataset_wrapper(dataset):
-    X, y, _, _ = load_dataset(dataset, "undivided")
-    return dict(X=X.toarray(), y=y.toarray())
-
-
 # @validate_params
 # {
 #     "drop": [Interval(Real, 0.0, 1.0, closed="left")],
@@ -206,9 +201,9 @@ def collect_imputation_stats(
             if out_path.exists():
                 logging.info(f"Skipping {name=} {dataset=} (already exists).")
                 continue
-            if estimator.inter_level_sampler is None:
-                logging.warning(f"Skipping {name} (no inter-level sampler).")
-                continue
+            # if estimator.inter_level_sampler is None:
+            #     logging.warning(f"Skipping {name} (no inter-level sampler).")
+            #     continue
 
             logging.info(f"Running {name} on dataset {dataset}...")
             try:
