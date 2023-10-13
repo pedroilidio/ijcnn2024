@@ -172,7 +172,13 @@ class WeakLabelImputer(BaseSampler, MetaEstimatorMixin):
 
     def fit_resample(self, X, y):
         self._validate_estimator()
+        if self.use_oob_proba and any(len(np.unique(y_col)) == 1 for y_col in y.T):
+            # FIXME: this is specific to scikit-learn forests.
+            raise ValueError(
+                "Cannot use OOB estimates: there are y columns with a single label."
+            )
         classifier = clone(self.estimator).fit(X, y)
+
         # TODO: use sklearn's check_array
         if y.ndim == 1:
             y = y.reshape(-1, 1)

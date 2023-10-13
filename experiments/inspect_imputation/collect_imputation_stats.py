@@ -115,8 +115,10 @@ def positive_unlabeled_cross_validate(
         eval_indices = np.where(y_sample == 0.0)
 
         results = []
+        # The first level score corresponds to no levels, only the final
+        # estimaor.
         for level, (y_resampled, level_scores) in enumerate(
-            zip(cascade_.y_resampled_, cascade_.level_scores_)
+            zip([y_sample] + cascade_.y_resampled_, cascade_.level_scores_)
         ):
             tn, fp, fn, tp = confusion_matrix(
                 y[eval_indices],

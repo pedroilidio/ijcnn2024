@@ -1,4 +1,6 @@
 from numbers import Real, Integral
+import warnings
+
 import numpy as np
 import scipy.sparse
 import scipy.stats
@@ -8,6 +10,7 @@ from sklearn.base import (
     TransformerMixin,
     MetaEstimatorMixin,
     clone,
+    _fit_context,
 )
 from sklearn.ensemble._forest import BaseForest
 from sklearn.tree._classes import BaseDecisionTree, DTYPE
@@ -44,6 +47,7 @@ _COMMON_PARAMS = {
 def _chi2_per_node(
     tree: sklearn.tree._tree.Tree,
     yates_correction=False,
+    warn: bool = True,
 ):
     """Calculate the chi2 statistic for each node in the tree.
 
@@ -57,8 +61,18 @@ def _chi2_per_node(
         The tree to calculate the chi2 statistic for.
     """
     # Total number of negatives, total number of positives
+    if tree.value.ndim == 3:  # Classification
+        # shape=(n_nodes, n_labels, n_classes)
+        class_counts = tree.value
+    else:  # Regression  HACK: only works for binary input.
+        # shape=(n_nodes, n_outputs) -> (n_nodes, n_labels, n_classes)
+        class_counts = np.dstack([
+            (1 - tree.value) * tree.weighted_n_node_samples,  # negatives
+            tree.value * tree.weighted_n_node_samples,  # positives
+        ])
+
     # shape=(n_labels, n_classes)
-    margin_row = tree.value[0]  # Class counts at the root node
+    margin_row = class_counts[0]  # Class counts at the root node
     total = tree.weighted_n_node_samples[0]
 
     # N samples in the node, N samples outside the node
@@ -74,11 +88,20 @@ def _chi2_per_node(
     #       = (n_nodes, n_labels, n_groups, n_classes)
     expected = (margin_row[None, :, None, :] * margin_col[:, None, :, None]) / total
 
+    if 0. in expected:
+        if warn:
+            warnings.warn(
+                "It seems that some classes are not observed in the dataset received by"
+                " the tree. The following [y_column, class_index] are not found in y:"
+                f" {np.argwhere(margin_row == 0).tolist()}"
+            )
+        expected[expected == 0] = np.finfo(expected.dtype).eps  # Avoid division by zero
+
     # shape=(n_nodes, n_labels, n_groups, n_classes)
     contingency_tables = np.stack(
         [
-            tree.value[1:],  # shape=(n_nodes, n_labels, n_classes)
-            margin_row - tree.value[1:],  # same shape
+            class_counts[1:],  # shape=(n_nodes, n_labels, n_classes)
+            margin_row - class_counts[1:],  # same shape
         ],
         axis=-2,  # so that classes is the last axis
     )
@@ -108,6 +131,7 @@ def _hstack(Xs):
         "node_size": ["array-like"],
         "node_weights": _COMMON_PARAMS["node_weights"],
     },
+    prefer_skip_nested_validation=True,
 )
 def _get_node_weights(node_size, node_weights):
     """Calculate node weights to be used in the tree embedding."""
@@ -127,13 +151,16 @@ def _get_node_weights(node_size, node_weights):
     raise RuntimeError
 
 
-# TODO: refactor
+# TODO RFC: store a mask or weights for each tree in the embedder transformer,
+# avoiding recalculating boolean masks, weights and/or chi2 statistics every in
+# every call to transform().
 @validate_params(
     {
         "tree": [BaseDecisionTree],
         "X": ["array-like"],
         **_COMMON_PARAMS,
-    }
+    },
+    prefer_skip_nested_validation=False,  # Trees are not validated yet
 )
 def embed_with_tree(
     tree_estimator,
@@ -202,7 +229,7 @@ def embed_with_tree(
     if method != "dense_path":  # TODO: move to fit
         mask = np.ones(tree.node_count, dtype=bool)
 
-        if max_pvalue < 1.0:
+        if max_pvalue < 1.0:  # FIXME: only works for classifier tree.
             chi2 = _chi2_per_node(tree)  # shape=(n_nodes, n_labels)
             chi2 = chi2.max(axis=1)  # take maximum chi2 among labels, shape=(n_nodes,)
             chi2_threshold = scipy.stats.chi2.ppf(max_pvalue, df=1)
@@ -292,8 +319,11 @@ class BaseTreeEmbedder(
         self.max_pvalue = max_pvalue
         self.max_node_size = max_node_size
 
+    @_fit_context(
+        # self.estimator is not validated yet
+        prefer_skip_nested_validation=False,
+    )
     def fit(self, X, y, **fit_params):
-        self._validate_params()
         self.estimator_ = clone(self.estimator)
         self.estimator_.fit(X, y)
         return self

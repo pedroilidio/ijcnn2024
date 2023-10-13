@@ -1,21 +1,22 @@
-from typing import Dict, Iterable, Sequence
+from typing import Dict, Iterable, Sequence, Any, Callable
 import copy
 import itertools
 import inspect
 import logging
 import pickle
+import os
 from pprint import pformat
 import warnings
-import requests
-import yaml
 from argparse import ArgumentParser
 from datetime import datetime
 from functools import partial
 from hashlib import sha3_256
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Callable
+
+import requests
 import numpy as np
+import yaml
 
 DEF_PATH_CONFIG = Path("config.yml")
 DEF_PATH_LOG = Path("experiments.log")
@@ -50,7 +51,7 @@ def load_callable(data: dict) -> Callable:
         return data["call"]
 
     func = load_object(data["call"])
-    return partial(func, **data["params"])
+    return partial(func, **data.get("params", {}))
 
 
 def load_estimator(estimator_data: dict) -> Any:
@@ -153,32 +154,31 @@ def deep_update(A: Any, B: Any) -> Any:
     """
     if not isinstance(B, (list, dict)):  # If we receive scalar values.
         return B
-
-    elif isinstance(A, list):
-        assert isinstance(B, list)
-        return A + B
-
-    elif isinstance(B, dict):
+    elif isinstance(A, list) and isinstance(B, list):
+        return list(set(A + B))
+    elif isinstance(B, list):
+        return [deep_update(A, item) for item in B]
+    elif isinstance(A, dict) and isinstance(B, dict):
         ret = copy.deepcopy(A)
         for k, Bk in B.items():
             ret[k] = Bk if k not in A else deep_update(A[k], Bk)
         return ret
 
-    else:  # elif isinstance(B, list):
-        return [deep_update(A, item) for item in B]
+    raise TypeError(f"Cannot update {type(A)} with {type(B)}.")
 
 
 def omit_not_builtin_params(param) -> Any:
     if isinstance(param, Callable):  # type or function
+        name = getattr(param, "__name__", None) or type(param).__name__
         return dict(
-            load=param.__module__ + "." + param.__name__,
+            load=param.__module__ + "." + name,
         )
     # If it's an instantiated object
     if type(param).__module__ != "builtins":
         return dict(
             call=type(param).__module__ + "." + type(param).__name__,
             params=(
-                omit_not_builtin_params(param.get_params())
+                omit_not_builtin_params(param.get_params(deep=False))
                 if hasattr(param, "get_params")
                 else {}
             ),
@@ -187,7 +187,7 @@ def omit_not_builtin_params(param) -> Any:
         return {
             p: omit_not_builtin_params(v)
             for p, v in param.items()
-            if not (p.endswith("_") or p.startswith("_"))
+            if not (p.endswith("_") or p.startswith("_"))  # HACK: Ignore private params
         }
     if not isinstance(param, str) and isinstance(param, Sequence):
         return [omit_not_builtin_params(p) for p in param]
@@ -202,6 +202,7 @@ def omit_not_builtin_params(param) -> Any:
 def compute_run_hash(run: dict) -> str:
     """Compute hash based on static parameters.
     Parameters used should not change each time the run is loaded.
+    We currently use estimator params, cv params and dataset params.
     Parameters
     ----------
     run : dict
@@ -244,7 +245,7 @@ def compute_run_hash(run: dict) -> str:
         cv_params,
         run["dataset"],
     ):
-        parameters_hash.update(pickle.dumps(obj))
+        parameters_hash.update(pickle.dumps(omit_not_builtin_params(obj)))
 
     return parameters_hash.hexdigest()
 
@@ -281,14 +282,13 @@ def execute_run(
     dataset = load_dataset(run["dataset"])
     estimator = load_estimator(run["estimator"])
 
-    # FIXME: There must be a better way to do this.
     if "modify_params" in run:
         estimator.set_params(**run["modify_params"])
         param_suffix = "_".join(str(p) for p in run["modify_params"].values())
+        # FIXME: There must be a better way to do this.
         run["estimator"]["name"] += "__" + param_suffix
     if "wrapper" in run and run["wrapper"] is not None:
         estimator = load_callable(run["wrapper"])(estimator)
-        run["estimator"]["name"] += "__" + run["wrapper"]["name"]
 
     run["estimator"]["final_params"] = (
         omit_not_builtin_params(estimator.get_params(deep=False))
@@ -304,12 +304,12 @@ def execute_run(
     if not allow_redundant_runs:
         try:
             # FIXME: current hashes need to be recalculated.
-            # next(outdir.rglob(f"{run['hash'][:7]}*.yml"))
-            next(
-                outdir.rglob(
-                    f"*{run['estimator']['name']}_{run['dataset']['name']}*.yml"
-                )
-            )
+            next(outdir.rglob(f"{run['hash'][:7]}*.yml"))
+            # next(
+            #     outdir.rglob(
+            #         f"*{run['estimator']['name']}_{run['dataset']['name']}*.yml"
+            #     )
+            # )
         except StopIteration:
             pass
         else:
@@ -339,7 +339,7 @@ def execute_run(
 
 
 def load_runs(
-    config_file: Path = DEF_PATH_CONFIG,
+    config_files: Iterable[Path] = (DEF_PATH_CONFIG,),
     unsafe_yaml: bool = False,
 ) -> dict:
     """Properly load YAML configuration files.
@@ -356,24 +356,42 @@ def load_runs(
         run (dict): each run informations to be processed by `execute_run()`.
     """
     yaml_load = yaml.unsafe_load if unsafe_yaml else yaml.safe_load
-
     try:
-        with config_file.open() as cf:
-            config = yaml_load(cf)
+        configs = []
+        for config_file in config_files:
+            with open(config_file) as cf:
+                configs.append(yaml_load(cf))
     except yaml.constructor.ConstructorError:
         raise ConfigLoadingError(
-            "It seems that your config files tried to load a Python object. If"
-            " you know what you are doing, you could try enabling YAML unsafe "
-            "loader with the --unsafe-yaml option. Proceed with caution."
+            "It seems that your configuration files failed to load a Python object. If"
+            " you know what you are doing, you could try enabling YAML unsafe loader"
+            " with the --unsafe-yaml option. Proceed with caution."
         )
 
-    config = deep_update(config["defaults"], config)
-    aliases = {
-        kind: {d["name"]: d for d in config["aliases"][kind]}
-        for kind in config["aliases"]
-    }
+    defaults = [c["defaults"] for c in configs]
 
-    for run in config["runs"]:
+    runs = []
+    aliases = {}
+
+    for i, config in enumerate(configs):
+        for default in reversed(defaults):  # Last defaults have priority
+            config = deep_update(default, config)
+
+        configs[i] = config
+        runs.extend(config["runs"])
+
+        # Collect and convert aliases from format:
+        #     "estimator": [{"name": "my_estimator", **params}, ...]
+        # to format:
+        #     "estimator": {"my_estimator": {"name": "my_estimator", **params}, ...}
+        # in this case, kind="estimator".
+        # TODO: use the second format in config.yml instead?
+        for kind, kind_aliases in config["aliases"].items():
+            aliases[kind] = aliases.get(kind, {})
+            for alias in kind_aliases:
+                aliases[kind][alias["name"]] = alias
+
+    for run in runs:
         if not run["active"]:
             logging.info(f"Skipping inactive run:\n{yaml.dump(run)}")
             continue
@@ -396,13 +414,70 @@ def load_runs(
 
 
 # TODO: Arguments description
+def run_experiments(
+    config_files: Path = DEF_PATH_CONFIG,
+    log_file: Path = DEF_PATH_LOG,
+    log_level: str = DEF_LOG_LEVEL,
+    unsafe_yaml: bool = False,
+    raise_errors: bool = False,
+    allow_redundant_runs: bool = False,
+    n_threads: int = 1,
+) -> None:
+    logging.captureWarnings(True)
+    logging.basicConfig(
+        level=log_level,
+        format="* [%(levelname)s] %(asctime)s: %(message)s",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+    )
+    logging.info("Starting a new series of runs.")
+
+    for var in [
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "BLIS_NUM_THREADS",
+    ]:
+        logging.info(f"Setting environment variable {var}=\"{n_threads}\"")
+        os.environ[var] = str(n_threads)
+
+    for run in load_runs(config_files, unsafe_yaml):
+        try:
+            finished_run = execute_run(run, allow_redundant_runs)
+        except KeyboardInterrupt:
+            logging.warning("Run terminated by user (KeyboardInterrupt).")
+            raise
+        except Exception:
+            logging.exception("Run terminated with error.")
+            if raise_errors:
+                raise
+        else:
+            if finished_run is None:
+                continue
+            run_path = Path(finished_run["path"])
+            run_path.parent.mkdir(exist_ok=True, parents=True)
+
+            with run_path.open("w") as out:
+                yaml.dump(finished_run, out)
+            logging.info(f"Run information saved to {run_path}.")
+
+
 def make_argparser(default_args: dict | None = None) -> ArgumentParser:
     default_args = default_args or {}
     parser = ArgumentParser()
 
-    parser.add_argument("--config-file", "-c", default=DEF_PATH_CONFIG, type=Path)
+    parser.add_argument("--config-files", "-c", default=(DEF_PATH_CONFIG,), nargs="+")
     parser.add_argument("--log-file", "-l", default=DEF_PATH_LOG, type=Path)
     parser.add_argument("--log-level", "-L", default=DEF_LOG_LEVEL)
+    parser.add_argument(
+        "--n-threads",
+        type=int,
+        default=1,
+        help=(
+            "Number of threads used to set the environment "
+            "variables OMP_NUM_THREADS, MKL_NUM_THREADS, OPENBLAS_NUM_THREADS"
+            " and BLIS_NUM_THREADS."
+        )
+    )
     parser.add_argument("--unsafe-yaml", action="store_true")
     parser.add_argument(
         "--allow-redundant-runs",
@@ -427,43 +502,11 @@ def make_argparser(default_args: dict | None = None) -> ArgumentParser:
     return parser
 
 
-def main(
-    config_file: Path = DEF_PATH_CONFIG,
-    log_file: Path = DEF_PATH_LOG,
-    log_level: str = DEF_LOG_LEVEL,
-    unsafe_yaml: bool = False,
-    raise_errors: bool = False,
-    allow_redundant_runs: bool = False,
-) -> None:
-    logging.captureWarnings(True)
-    logging.basicConfig(
-        level=log_level,
-        format="* [%(levelname)s] %(asctime)s: %(message)s",
-        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
-    )
-    logging.info("Starting a new series of runs.")
+def main():
+    args = make_argparser().parse_args()
+    run_experiments(**vars(args))
 
-    for run in load_runs(config_file, unsafe_yaml):
-        try:
-            finished_run = execute_run(run, allow_redundant_runs)
-        except KeyboardInterrupt:
-            logging.warning("Run terminated by user (KeyboardInterrupt).")
-            raise
-        except Exception:
-            logging.exception("Run terminated with error.")
-            if raise_errors:
-                raise
-        else:
-            if finished_run is None:
-                continue
-            run_path = Path(finished_run["path"])
-            run_path.parent.mkdir(exist_ok=True, parents=True)
-
-            with run_path.open("w") as out:
-                yaml.dump(finished_run, out)
-            logging.info(f"Run information saved to {run_path}.")
 
 
 if __name__ == "__main__":
-    args = make_argparser().parse_args()
-    main(**vars(args))
+    main()

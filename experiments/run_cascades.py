@@ -7,7 +7,7 @@ from sklearn.model_selection import cross_validate, StratifiedKFold
 from skmultilearn.dataset import load_dataset
 from skmultilearn.model_selection import IterativeStratification
 
-from estimators import estimators_dict
+from proba_vs_embedding.estimators import estimators_dict
 
 
 def load_dataset_wrapper(dataset, min_positives: int | float = False):

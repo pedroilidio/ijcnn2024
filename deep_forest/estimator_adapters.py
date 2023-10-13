@@ -49,12 +49,16 @@ class MultiOutputVotingClassifier(_BaseComposition, ClassifierMixin):
                 for label_proba in probas
             ])
         return probas.argmax(axis=1).reshape(-1, 1)
+    
+    @property
+    def classes_(self):
+        return self.estimators_[0].classes_
 
     def _more_tags(self):
         return {"multioutput": True}
 
 
-class ClassifierTransformer(
+class ProbaTransformer(
     BaseEstimator,
     MetaEstimatorMixin,
     TransformerMixin,
@@ -78,8 +82,51 @@ class ClassifierTransformer(
             return np.hstack(proba)
         return proba
 
+    def fit_transform(self, X, y):
+        self.estimator_ = clone(self.estimator)
 
-class RegressorAsSampler(
+        if hasattr(self.estimator_, "fit_predict_proba"):
+            proba = self.estimator_.fit_predict_proba(X, y)
+        else:
+            proba = self.estimator_.fit(X, y).predict_proba(X)
+
+        if isinstance(proba, list):  # If multioutput
+            return np.hstack(proba)
+        return proba
+
+
+class EstimatorAsTransformer(
+    BaseEstimator,
+    MetaEstimatorMixin,
+    TransformerMixin,
+):
+    _parameter_constraints = {
+        "estimator": [
+            HasMethods(["fit", "predict"]),
+            HasMethods(["fit_predict"]),
+        ],
+    }
+
+    def __init__(self, estimator):
+        self.estimator = estimator
+
+    def fit(self, X, y):
+        self.estimator_ = clone(self.estimator)
+        self.estimator_.fit(X, y)
+        return self
+
+    def transform(self, X):
+        # Use predictions as new features.
+        return self.estimator_.predict(X)
+    
+    def fit_transform(self, X, y):
+        self.estimator_ = clone(self.estimator)
+        if hasattr(self.estimator_, "fit_predict"):
+            return self.estimator_.fit_predict(X, y)
+        return self.estimator_.fit(X, y).predict(X)
+
+
+class EstimatorAsSampler(
     BaseSampler,
     MetaEstimatorMixin,
 ):

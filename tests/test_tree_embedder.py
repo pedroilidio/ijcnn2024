@@ -1,8 +1,15 @@
-import pytest
+import copy
+
 import numpy as np
 import scipy.sparse
-from sklearn.tree import ExtraTreeClassifier, DecisionTreeClassifier
+from sklearn.tree import (
+    ExtraTreeClassifier,
+    ExtraTreeRegressor,
+    DecisionTreeClassifier,
+)
 from sklearn.ensemble import ExtraTreesClassifier
+import pytest
+
 from deep_forest.tree_embedder import (
     embed_with_tree,
     TreeEmbedder,
@@ -129,7 +136,7 @@ def test_embedder_classes(data, embedder, method):
     embedder.transform(X)
 
 
-@pytest.mark.parametrize("correction", [True, False])
+@pytest.mark.parametrize("correction", [True, False], ids=["yates", "no_yates"])
 def test_chi2(data, correction):
     embedder = TreeEmbedder(ExtraTreeClassifier()).fit(*data)
     tree = embedder.estimator_.tree_
@@ -149,3 +156,10 @@ def test_chi2(data, correction):
     
     chi2_broadcast = _chi2_per_node(tree, yates_correction=correction)[1:]
     assert np.allclose(chi2, chi2_broadcast)
+
+
+@pytest.mark.parametrize("correction", [True, False], ids=["yates", "no_yates"])
+def test_chi2_regressor(data, correction):
+    embedder = TreeEmbedder(ExtraTreeRegressor()).fit(*data)
+    chi2 = _chi2_per_node(embedder.estimator_.tree_, yates_correction=correction)
+    assert chi2.shape == (embedder.estimator_.tree_.node_count, data[1].shape[1])

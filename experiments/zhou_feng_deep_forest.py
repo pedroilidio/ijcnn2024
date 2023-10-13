@@ -13,7 +13,7 @@ from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold
 from sklearn.utils import check_random_state
-from deep_forest.estimator_adapters import ClassifierTransformer
+from deep_forest.estimator_adapters import ProbaTransformer
 from deep_forest.cascade import Cascade
 
 RSTATE = check_random_state(0)
@@ -24,7 +24,7 @@ RSTATE = check_random_state(0)
 # 4-times repeated 3-fold CV.
 cv = RepeatedStratifiedKFold(n_splits=3, n_repeats=4, random_state=RSTATE)
 
-random_forest_transformer = ClassifierTransformer(
+random_forest_transformer = ProbaTransformer(
     CalibratedClassifierCV(
         RandomForestClassifier(
             n_estimators=500,
@@ -35,7 +35,7 @@ random_forest_transformer = ClassifierTransformer(
         ensemble=True,
     )
 )
-extra_trees_transformer = ClassifierTransformer(
+extra_trees_transformer = ProbaTransformer(
     CalibratedClassifierCV(
         ExtraTreesClassifier(
             n_estimators=500,

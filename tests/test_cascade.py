@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 
 from deep_forest.cascade import Cascade, AlternatingLevel
 from deep_forest.tree_embedder import TreeEmbedder
-from deep_forest.estimator_adapters import ClassifierTransformer
+from deep_forest.estimator_adapters import ProbaTransformer
 from sklearn.pipeline import FeatureUnion
 from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 
@@ -23,8 +23,8 @@ def cascade_model():
         [
             ("te1", TreeEmbedder(ExtraTreeClassifier(max_features=1))),
             ("te2", TreeEmbedder(ExtraTreeClassifier(max_features=1))),
-            ("rf1", ClassifierTransformer(DecisionTreeClassifier())),
-            ("rf2", ClassifierTransformer(DecisionTreeClassifier())),
+            ("rf1", ProbaTransformer(DecisionTreeClassifier())),
+            ("rf2", ProbaTransformer(DecisionTreeClassifier())),
         ]
     )
     final_estimator = DecisionTreeClassifier()
@@ -54,8 +54,8 @@ def test_alternating_level_estimator(iris_data):
         [
             ("te1", TreeEmbedder(ExtraTreeClassifier(max_features=1))),
             ("te2", TreeEmbedder(ExtraTreeClassifier(max_features=1))),
-            ("rf1", ClassifierTransformer(DecisionTreeClassifier())),
-            ("rf2", ClassifierTransformer(DecisionTreeClassifier())),
+            ("rf1", ProbaTransformer(DecisionTreeClassifier())),
+            ("rf2", ProbaTransformer(DecisionTreeClassifier())),
         ]
     )
     final_estimator = DecisionTreeClassifier()
