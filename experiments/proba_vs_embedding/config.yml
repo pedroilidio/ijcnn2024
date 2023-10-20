@@ -112,12 +112,22 @@ aliases:
   estimator:
   - name: proba
     call: proba_vs_embedding.estimators.cascade_proba
+
   - name: proba_weak
     call: proba_vs_embedding.estimators.cascade_weak_label_proba
+
   - name: embedding
     call: proba_vs_embedding.estimators.cascade_tree_embedder
+
+  - name: embedding_chi2
+    call: proba_vs_embedding.estimators.cascade_tree_embedder_pvalue
+
+  - name: embedding_proba
+    call: proba_vs_embedding.estimators.cascade_tree_embedder_proba
+
   - name: embedding_weak
     call: proba_vs_embedding.estimators.cascade_weak_label_tree_embedder
+
   - name: embedding_weak_chi2
     call: proba_vs_embedding.estimators.cascade_weak_label_tree_embedder_pvalue
 
@@ -194,6 +204,8 @@ runs:
     - tmc2007_500  # 28596
     - mediamill    # 43907
     estimator:
+    - embedding_proba
+    - embedding_chi2
     - proba
     - embedding
     - proba_weak

@@ -7,6 +7,7 @@ import os
 import joblib
 import numpy as np
 import sklearn.metrics
+from sklearn.base import clone
 from sklearn.datasets import load_iris
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.multioutput import MultiOutputClassifier
@@ -32,15 +33,14 @@ from sklearn.utils._param_validation import (
 )
 from skmultilearn.dataset import load_dataset
 
-from deep_forest.tree_embedder import (
-    ForestEmbedder,
-)
+from deep_forest.tree_embedder import ForestEmbedder
 from deep_forest.cascade import Cascade, AlternatingLevel
 from deep_forest.weak_labels import WeakLabelImputer, PositiveUnlabeledImputer
 from deep_forest.estimator_adapters import (
     ProbaTransformer,
     EstimatorAsTransformer,
     MultiOutputVotingClassifier,
+    TreeEmbedderWithOutput,
 )
 from skmultilearn.model_selection import IterativeStratification
 from _lobpcg_truncated_svd import LOBPCGTruncatedSVD
@@ -54,8 +54,9 @@ MAX_DEPTH = 10
 N_COMPONENTS = 0.1
 MAX_LEVELS = 10
 VERBOSE = 10
-RSTATE = check_random_state(0)
+RSTATE = 0  # check_random_state(0)
 NJOBS = 14
+MEMORY = None
 
 for var in [
     "OMP_NUM_THREADS",
@@ -258,6 +259,27 @@ alternating_level_proba = AlternatingLevel(
     ]
 )
 
+alternating_level_embedding_proba = AlternatingLevel([
+    ("xt", TreeEmbedderWithOutput(
+            xt_embedder,
+            post_transformer=LOBPCGTruncatedSVD(
+                n_components=N_COMPONENTS,
+                max_components=800,
+                random_state=RSTATE,
+            ),
+        ),
+    ),
+    ("rf", TreeEmbedderWithOutput(
+            rf_embedder,
+            post_transformer=LOBPCGTruncatedSVD(
+                n_components=N_COMPONENTS,
+                max_components=800,
+                random_state=RSTATE,
+            ),
+        ),
+    ),
+])
+
 weak_label_imputer = PositiveUnlabeledImputer(
     ExtraTreesClassifier(  # TODO: use regressor
         n_estimators=N_TREES,
@@ -288,7 +310,7 @@ cascade_proba = Cascade(
     max_levels=MAX_LEVELS,
     verbose=True,
     random_state=RSTATE,
-    # scoring=scoring_metrics,
+    memory=MEMORY,
 )
 
 cascade_tree_embedder = Cascade(
@@ -297,7 +319,21 @@ cascade_tree_embedder = Cascade(
     max_levels=MAX_LEVELS,
     verbose=True,
     random_state=RSTATE,
-    # scoring=scoring_metrics,
+    memory=MEMORY,
+)
+
+cascade_tree_embedder_pvalue = clone(cascade_tree_embedder).set_params(
+    level__rf_embedder__rf__max_pvalue=0.05,
+    level__xt_embedder__xt__max_pvalue=0.05,
+)
+
+cascade_tree_embedder_proba = Cascade(
+    level=alternating_level_embedding_proba,
+    final_estimator=final_estimator,
+    max_levels=MAX_LEVELS,
+    verbose=True,
+    random_state=RSTATE,
+    memory=MEMORY,
 )
 
 cascade_weak_label_proba = Cascade(
@@ -307,7 +343,7 @@ cascade_weak_label_proba = Cascade(
     max_levels=MAX_LEVELS,
     verbose=True,
     random_state=RSTATE,
-    # scoring=scoring_metrics,
+    memory=MEMORY,
 )
 
 cascade_weak_label_tree_embedder = Cascade(
@@ -317,17 +353,11 @@ cascade_weak_label_tree_embedder = Cascade(
     max_levels=MAX_LEVELS,
     verbose=True,
     random_state=RSTATE,
-    # scoring=scoring_metrics,
+    memory=MEMORY,
 )
 
-cascade_weak_label_tree_embedder_pvalue = Cascade(
-    level=alternating_level_embedding,
-    final_estimator=final_estimator,
-    inter_level_sampler=weak_label_imputer,
-    max_levels=MAX_LEVELS,
-    verbose=True,
-    random_state=RSTATE,
-    # scoring=scoring_metrics,
+cascade_weak_label_tree_embedder_pvalue = clone(
+    cascade_weak_label_tree_embedder,
 ).set_params(
     level__rf_embedder__rf__max_pvalue=0.05,
     level__xt_embedder__xt__max_pvalue=0.05,
@@ -336,12 +366,15 @@ cascade_weak_label_tree_embedder_pvalue = Cascade(
 estimators_dict = {
     "cascade_proba": cascade_proba,
     "cascade_tree_embedder": cascade_tree_embedder,
+    "cascade_tree_embedder_pvalue": cascade_tree_embedder_pvalue,
+    "cascade_tree_embedder_proba": cascade_tree_embedder_proba,
     "cascade_weak_label_proba": cascade_weak_label_proba,
     "cascade_weak_label_tree_embedder": cascade_weak_label_tree_embedder,
     "cascade_weak_label_tree_embedder_pvalue": cascade_weak_label_tree_embedder_pvalue,
 }
 
 if __name__ == "__main__":
+    breakpoint()
     # X, y, _, _ = load_dataset("mediamill", "undivided")
     X, y, _, _ = load_dataset("delicious", "undivided")
     # X, y = load_iris(return_X_y=True)

@@ -1,0 +1,459 @@
+active: true
+cv:
+  call: sklearn.model_selection.cross_validate
+  params:
+    cv: !!python/object:skmultilearn.model_selection.iterative_stratification.IterativeStratification
+      desired_samples_per_combination_per_fold:
+        ? !!python/tuple
+        - 0
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - &id001 !!python/name:numpy.ndarray ''
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - &id002 !!python/object/apply:numpy.dtype
+            args:
+            - f8
+            - false
+            - true
+            state: !!python/tuple
+            - 3
+            - <
+            - null
+            - null
+            - null
+            - -1
+            - -1
+            - 0
+          - false
+          - !!binary |
+            ADMzMzMz478AmpmZmZnZPwCamZmZmdk/AJqZmZmZ2T8AMzMzMzPjvw==
+        ? !!python/tuple
+        - 1
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            AJqZmZmZyb+AmZmZmZnpPwCamZmZmcm/AJqZmZmZyb8AmpmZmZnJvw==
+        ? !!python/tuple
+        - 2
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            AJqZmZmZ2T8AmpmZmZnZPwCamZmZmdk/ADMzMzMz478AMzMzMzPjvw==
+        ? !!python/tuple
+        - 3
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            AJmZmZmZ2b+AMzMzMzPjP4AzMzMzM+M/AJmZmZmZ2b8AmZmZmZnZvw==
+        ? !!python/tuple
+        - 4
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            gDMzMzMz4z8AmZmZmZnZvwCZmZmZmdm/AJmZmZmZ2b+AMzMzMzPjPw==
+        ? !!python/tuple
+        - 5
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            AJqZmZmZyT+AmZmZmZnpvwCamZmZmck/AJqZmZmZyT8AmpmZmZnJPw==
+      desired_samples_per_fold: !!python/object/apply:numpy.core.multiarray._reconstruct
+        args:
+        - *id001
+        - !!python/tuple
+          - 0
+        - !!binary |
+          Yg==
+        state: !!python/tuple
+        - 1
+        - !!python/tuple
+          - 5
+        - *id002
+        - false
+        - !!binary |
+          AJyZmZmZ2T8AmZmZmZn5v8CZmZmZmR1AQGZmZmZmEsAAmZmZmZn5vw==
+      n_labels: 6
+      n_samples: 2407
+      n_splits: 5
+      order: 1
+      percentage_per_fold:
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      random_state: null
+      shuffle: false
+    n_jobs: 5
+    return_estimator: false
+    return_train_score: false
+    scoring:
+    - f1_macro
+    - f1_micro
+    - f1_weighted
+    - f1_samples
+    - precision_macro
+    - precision_micro
+    - precision_weighted
+    - precision_samples
+    - recall_macro
+    - recall_micro
+    - recall_weighted
+    - recall_samples
+    - jaccard_macro
+    - jaccard_micro
+    - jaccard_weighted
+    - jaccard_samples
+    - accuracy
+    verbose: 10
+dataset:
+  call: run_cascades.load_dataset_wrapper
+  name: scene
+  params:
+    dataset: scene
+    min_positives: 15
+directory: scores_per_level/runs
+end: 2023-10-13 18:09:01.466845
+estimator:
+  call: proba_vs_embedding.estimators.cascade_tree_embedder
+  final_params:
+    final_estimator:
+      call: deep_forest.estimator_adapters.MultiOutputVotingClassifier
+      params:
+        estimators:
+        - - rf
+          - call: sklearn.ensemble._forest.RandomForestClassifier
+            params:
+              bootstrap: true
+              ccp_alpha: 0.0
+              class_weight: null
+              criterion: gini
+              max_depth: null
+              max_features: sqrt
+              max_leaf_nodes: null
+              max_samples: null
+              min_impurity_decrease: 0.0
+              min_samples_leaf: 1
+              min_samples_split: 2
+              min_weight_fraction_leaf: 0.0
+              n_estimators: 150
+              n_jobs: 14
+              oob_score: false
+              random_state: 0
+              verbose: 10
+              warm_start: false
+        - - xt
+          - call: sklearn.ensemble._forest.ExtraTreesClassifier
+            params:
+              bootstrap: false
+              ccp_alpha: 0.0
+              class_weight: null
+              criterion: gini
+              max_depth: null
+              max_features: 1
+              max_leaf_nodes: null
+              max_samples: null
+              min_impurity_decrease: 0.0
+              min_samples_leaf: 1
+              min_samples_split: 2
+              min_weight_fraction_leaf: 0.0
+              n_estimators: 150
+              n_jobs: 14
+              oob_score: false
+              random_state: 0
+              verbose: 10
+              warm_start: false
+    inter_level_sampler: null
+    keep_original_features: true
+    level:
+      call: deep_forest.cascade.AlternatingLevel
+      params:
+        last_output_indices: null
+        n_jobs: null
+        sparse_threshold: 0.3
+        transformer_weights: null
+        transformers:
+        - - xt_embedder
+          - call: sklearn.pipeline.Pipeline
+            params:
+              memory: null
+              steps:
+              - - xt
+                - call: deep_forest.tree_embedder.ForestEmbedder
+                  params:
+                    estimator:
+                      call: sklearn.ensemble._forest.ExtraTreesRegressor
+                      params:
+                        bootstrap: true
+                        ccp_alpha: 0.0
+                        criterion: squared_error
+                        max_depth: 10
+                        max_features: 1
+                        max_leaf_nodes: null
+                        max_samples: 0.5
+                        min_impurity_decrease: 0.0
+                        min_samples_leaf: 1
+                        min_samples_split: 2
+                        min_weight_fraction_leaf: 0.0
+                        n_estimators: 150
+                        n_jobs: 14
+                        oob_score: false
+                        random_state: 0
+                        verbose: 10
+                        warm_start: false
+                    max_node_size: 0.8
+                    max_pvalue: 0.05
+                    method: path
+                    node_weights: log_node_size
+              - - pca
+                - call: _lobpcg_truncated_svd.LOBPCGTruncatedSVD
+                  params:
+                    max_components: 800
+                    n_components: 0.1
+                    random_state: 0
+                    tol: 0.0
+                    verbose: 0
+              verbose: false
+        - - rf_embedder
+          - call: sklearn.pipeline.Pipeline
+            params:
+              memory: null
+              steps:
+              - - rf
+                - call: deep_forest.tree_embedder.ForestEmbedder
+                  params:
+                    estimator:
+                      call: sklearn.ensemble._forest.RandomForestRegressor
+                      params:
+                        bootstrap: true
+                        ccp_alpha: 0.0
+                        criterion: squared_error
+                        max_depth: 10
+                        max_features: sqrt
+                        max_leaf_nodes: null
+                        max_samples: 0.5
+                        min_impurity_decrease: 0.0
+                        min_samples_leaf: 1
+                        min_samples_split: 2
+                        min_weight_fraction_leaf: 0.0
+                        n_estimators: 150
+                        n_jobs: 14
+                        oob_score: false
+                        random_state: 0
+                        verbose: 10
+                        warm_start: false
+                    max_node_size: 0.8
+                    max_pvalue: 0.05
+                    method: path
+                    node_weights: log_node_size
+              - - pca
+                - call: _lobpcg_truncated_svd.LOBPCGTruncatedSVD
+                  params:
+                    max_components: 800
+                    n_components: 0.1
+                    random_state: 0
+                    tol: 0.0
+                    verbose: 0
+              verbose: false
+        verbose: false
+        verbose_feature_names_out: true
+    max_levels: 10
+    max_unimproving_levels: null
+    memory: /tmp
+    min_improvement: null
+    min_levels: 1
+    min_relative_improvement: null
+    min_score: 0.0
+    random_state: 0
+    refit: true
+    scoring: null
+    trim_to_best_score: false
+    validation_size: 0.2
+    verbose: true
+  name: embedding__10
+  params:
+    memory: /tmp
+hash: 0f80206ec9ed33a0430f9a83236ba691682d5830ce1ff4b5897c40461d47b04e
+metaestimator: null
+modify_params:
+  max_levels: 10
+path: /home/pedro/mestrado/biomal_repo/scripts/cascade_forests/experiments/scores_per_level/runs/0f80206_20231013T180338111907_embedding__10_scene.yml
+results:
+  fit_time:
+  - 303.65937399864197
+  - 316.91683888435364
+  - 307.3204336166382
+  - 308.77369594573975
+  - 304.3002848625183
+  score_time:
+  - 6.83619499206543
+  - 5.566426753997803
+  - 5.993027210235596
+  - 6.273839473724365
+  - 6.60612416267395
+  test_accuracy:
+  - 0.4968814968814969
+  - 0.4451345755693582
+  - 0.4451476793248945
+  - 0.4403292181069959
+  - 0.484472049689441
+  test_f1_macro:
+  - 0.63187478820655
+  - 0.5980657020222354
+  - 0.6052619470669988
+  - 0.5961071863477637
+  - 0.6419462768228958
+  test_f1_micro:
+  - 0.6432160804020101
+  - 0.6091503267973857
+  - 0.608355091383812
+  - 0.6010498687664042
+  - 0.639386189258312
+  test_f1_samples:
+  - 0.5162855162855162
+  - 0.46997929606625255
+  - 0.47292545710267225
+  - 0.45816186556927296
+  - 0.505175983436853
+  test_f1_weighted:
+  - 0.6111737261881969
+  - 0.5736052197032854
+  - 0.5859632206160506
+  - 0.5746580190737899
+  - 0.6286529646356672
+  test_jaccard_macro:
+  - 0.4947762817037076
+  - 0.46352045038028544
+  - 0.45922966139333515
+  - 0.4512999105642308
+  - 0.48535582095461516
+  test_jaccard_micro:
+  - 0.4740740740740741
+  - 0.43796992481203006
+  - 0.4371482176360225
+  - 0.42964352720450283
+  - 0.4699248120300752
+  test_jaccard_samples:
+  - 0.5114345114345115
+  - 0.463768115942029
+  - 0.46589310829817154
+  - 0.4537037037037037
+  - 0.5
+  test_jaccard_weighted:
+  - 0.47414464466806344
+  - 0.4395980286971424
+  - 0.4404566206891789
+  - 0.43022704027661957
+  - 0.4711414329517772
+  test_precision_macro:
+  - 0.9005935395945773
+  - 0.92127035697438
+  - 0.9139302453818582
+  - 0.9284442648869918
+  - 0.9419626195906519
+  test_precision_micro:
+  - 0.9175627240143369
+  - 0.9357429718875502
+  - 0.932
+  - 0.9385245901639344
+  - 0.946969696969697
+  test_precision_samples:
+  - 0.525987525987526
+  - 0.4813664596273292
+  - 0.4873417721518987
+  - 0.4670781893004115
+  - 0.515527950310559
+  test_precision_weighted:
+  - 0.8945237742422216
+  - 0.9190234221935305
+  - 0.9084069895679048
+  - 0.9254957414218363
+  - 0.93868102362519
+  test_recall_macro:
+  - 0.5166766797815524
+  - 0.47569577009547603
+  - 0.4705605730446061
+  - 0.46354474714972865
+  - 0.496869172928097
+  test_recall_micro:
+  - 0.4951644100580271
+  - 0.45155038759689925
+  - 0.45155038759689925
+  - 0.4420849420849421
+  - 0.4826254826254826
+  test_recall_samples:
+  - 0.5114345114345115
+  - 0.4648033126293996
+  - 0.46589310829817154
+  - 0.4537037037037037
+  - 0.5
+  test_recall_weighted:
+  - 0.4951644100580271
+  - 0.45155038759689925
+  - 0.45155038759689925
+  - 0.4420849420849421
+  - 0.4826254826254826
+start: 2023-10-13 18:03:38.111907
+wrapper: null
