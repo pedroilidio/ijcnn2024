@@ -224,7 +224,7 @@ class WeakLabelImputer(BaseSampler, MetaEstimatorMixin):
 class PositiveUnlabeledImputer(WeakLabelImputer):
     def fit_resample(self, X, y):
         Xt, yt = super().fit_resample(X, y)
-        final_y = (y | yt).astype(int)
+        final_y = (y.astype(bool) | yt.astype(bool)).astype(int)
 
         if self.verbose:
             n_changed = (final_y != y).sum()

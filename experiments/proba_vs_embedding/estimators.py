@@ -50,7 +50,8 @@ N_TREES = 150
 # NOTE: the paper undersamples for the whole forest, we perform undersampling
 # for each tree.
 MAX_EMBEDDING_SAMPLES = 0.5
-MAX_DEPTH = 10
+# MAX_DEPTH = 10
+MAX_DEPTH = None
 N_COMPONENTS = 0.1
 MAX_LEVELS = 10
 VERBOSE = 10

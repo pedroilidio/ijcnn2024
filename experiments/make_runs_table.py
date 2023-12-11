@@ -59,8 +59,12 @@ def make_runs_table(
     # df.columns = pd.MultiIndex.from_arrays(
     #     zip_longest(*df.columns.str.split("."), fillvalue="")
     # )
-    df = df.dropna(axis="columns", how="any")  # FIXME: wrapper
-    df = df.explode(df.columns[df.columns.str.startswith("results.")].to_list())
+
+    result_cols = df.columns[df.columns.str.startswith("results.")].to_list()
+    df = df.dropna(subset=result_cols, axis=0, how="all")
+    df = df.dropna(axis=1, how="all")
+    df = df.explode(df.columns.intersection(result_cols).to_list())
+
     df["cv.fold"] = df.groupby(level=0).cumcount()
     # drop=true because 'hash' also a column already.
     df = df.reset_index(drop=True).sort_index(axis=1)

@@ -158,6 +158,7 @@ def _get_node_weights(node_size, node_weights):
     {
         "tree": [BaseDecisionTree],
         "X": ["array-like"],
+        "warn_no_output": ["boolean"],
         **_COMMON_PARAMS,
     },
     prefer_skip_nested_validation=False,  # Trees are not validated yet
@@ -169,6 +170,7 @@ def embed_with_tree(
     node_weights=None,
     max_pvalue=1.0,
     max_node_size=1.0,
+    warn_no_output=True,
 ) -> np.ndarray | scipy.sparse.csr_matrix:
     """Use a decision tree to create data representations.
 
@@ -221,15 +223,12 @@ def embed_with_tree(
         details.
     """
     tree = tree_estimator.tree_
+    original_max_node_size = max_node_size
 
-    if tree.max_depth <= 1:
-        raise ValueError(
-            "The tree has a single node. It cannot be used to embed the data."
-        )
     if method != "dense_path":  # TODO: move to fit
         mask = np.ones(tree.node_count, dtype=bool)
 
-        if max_pvalue < 1.0:  # FIXME: only works for classifier tree.
+        if max_pvalue < 1.0:
             chi2 = _chi2_per_node(tree)  # shape=(n_nodes, n_labels)
             chi2 = chi2.max(axis=1)  # take maximum chi2 among labels, shape=(n_nodes,)
             chi2_threshold = scipy.stats.chi2.ppf(max_pvalue, df=1)
@@ -259,8 +258,6 @@ def embed_with_tree(
             # Xt *= _get_node_weights(node_size, node_weights)
             Xt = Xt.multiply(weights).tocsr()
 
-        return Xt
-
     elif method == "dense_path":
         if node_weights is not None:
             raise ValueError(
@@ -275,8 +272,6 @@ def embed_with_tree(
             is_right_child = tree.children_right[path][:-1] == node_idx[path][1:]
             Xt[i, :len(is_right_child)] = is_right_child
 
-        return Xt
-
     elif method == "all_nodes":
         # Select data corresponding to internal nodes, excluding leaves
         node_size = tree.weighted_n_node_samples[mask]
@@ -290,9 +285,17 @@ def embed_with_tree(
             Xt *= weights
 
         Xt = Xt[:, node_size <= max_node_size]
-        return Xt
+    else:
+        raise ValueError
 
-    raise ValueError
+    if Xt.shape[1] == 0 and warn_no_output:
+        warnings.warn(
+            f"Tree embedder: no nodes were selected, so no features produced."
+            f" {tree.max_depth=}. Consider increasing"
+            f" max_node_size={original_max_node_size} or {max_pvalue=}."
+        )
+    return Xt
+
 
 
 class BaseTreeEmbedder(
@@ -308,7 +311,7 @@ class BaseTreeEmbedder(
     def __init__(
         self,
         estimator,
-        method="all_nodes",
+        method="path",
         node_weights=None,
         max_pvalue=1.0,
         max_node_size=1.0,
@@ -364,7 +367,15 @@ class ForestEmbedder(BaseTreeEmbedder):
                 node_weights=self.node_weights,
                 max_pvalue=self.max_pvalue,
                 max_node_size=self.max_node_size,
+                warn_no_output=False,
             )
             for tree in self.estimator_.estimators_
         )
-        return _hstack(np.fromiter(embeddings_iter, dtype='object'))
+        Xt = _hstack(np.fromiter(embeddings_iter, dtype='object'))
+
+        if Xt.shape[1] == 0:
+            warnings.warn(
+                f"Tree embedder: no nodes were selected, so no features produced."
+                f" Consider increasing {self.max_node_size=} or {self.max_pvalue=}."
+            )
+        return Xt

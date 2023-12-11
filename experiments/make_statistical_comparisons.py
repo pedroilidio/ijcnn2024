@@ -200,7 +200,6 @@ def iter_posthoc_comparisons(
         indices.append(hue)
 
     for metric in y_cols:
-        print("- Processing metric:", metric)
         if n_groups <= 1:
             warnings.warn(
                 f"Skipping {metric} because there are not enough groups "
@@ -422,7 +421,7 @@ def plot_everything(
 
     df2 = df.loc[:, df.columns.str.startswith("results.")].dropna(axis=1, how="all")
     df2.columns = df2.columns.str.removeprefix("results.")
-    metric_names = df2.columns.to_list()
+    metric_names = set(df2.columns)
 
     df2["estimator"] = df["estimator.name"]
     df2["dataset"] = df["dataset.name"]
@@ -436,6 +435,15 @@ def plot_everything(
         df2 = df2.loc[
             :, df2.columns.isin(metric_subset + ["estimator", "dataset", "fold"])
         ]
+        metric_names &= set(df2.columns)
+
+    if df2.empty:
+        raise ValueError(
+            "No data selected. Please review the filter parameters specified:"
+            + "\n  estimator_subset:\n  - " + "\n  - ".join(estimator_subset or [])
+            + "\n  dataset_subset:\n  - " + "\n  - ".join(dataset_subset or [])
+            + "\n  metric_subset:\n  - " + "\n  - ".join(metric_subset or [])
+        )
 
     # Determine estimator hue
     if hue == "prefix":
@@ -455,8 +463,8 @@ def plot_everything(
         df2["hue"] = "no_hue"  # HACK
         hue = "hue"
 
-    # Drop duplicated runs
-    dup = df2.duplicated(["dataset", "fold", "estimator"], keep="first")
+    # Drop duplicated runs (should be ordered by start time)
+    dup = df2.duplicated(["dataset", "fold", "estimator"], keep="last")
     if dup.any():
         warnings.warn(
             "The following runs were duplicated and will be removed from the"
@@ -536,7 +544,6 @@ def plot_everything(
 
     # Make visualizations of pairwise estimator comparisons.
     for dataset_name, dataset_group in df2.groupby("dataset"):
-        print("Processing", dataset_name)
 
         # Existence is assured by make_visualizations()
         outdir = main_outdir / dataset_name
@@ -550,6 +557,13 @@ def plot_everything(
             p_adjust="fdr_bh",
             hue=hue,
         ):
+            print(f"  ==> Processing {dataset_name=} {metric=}")
+            if pvalue_crosstable.isna().any().any():
+                warnings.warn(
+                    f"NaNs found in the pvalue crosstable for {metric=} on"
+                    f" {dataset_name=}. Skipping."
+                )
+                continue
             omnibus_pvalue = friedman_statistics.loc[dataset_name, metric].pvalue
 
             make_visualizations(

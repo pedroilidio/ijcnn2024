@@ -1,11 +1,47 @@
 import numpy as np
 from sklearn.base import (
-    BaseEstimator, MetaEstimatorMixin, TransformerMixin, clone,
+    BaseEstimator,
+    MetaEstimatorMixin,
+    TransformerMixin,
     ClassifierMixin,
+    RegressorMixin,
+    clone,
+    _fit_context,
 )
 from sklearn.utils.metaestimators import _BaseComposition
-from sklearn.utils._param_validation import HasMethods
+from sklearn.utils._param_validation import HasMethods, StrOptions
 from imblearn.base import BaseSampler
+
+from deep_forest.tree_embedder import BaseTreeEmbedder, _hstack
+
+
+class MultiOutputVotingRegressor(_BaseComposition, RegressorMixin):
+    def __init__(self, estimators):
+        self.estimators = estimators
+
+    def get_params(self, deep=True):
+        return self._get_params("estimators", deep=deep)
+
+    def set_params(self, **params):
+        return self._set_params("estimators", **params)
+
+    def fit(self, X, y):
+        self.estimators_ = [
+            clone(estimator).fit(X, y)
+            for name, estimator in self.estimators
+        ]
+        return self
+
+    def predict(self, X):
+        outputs = [
+            estimator.predict(X)
+            for estimator in self.estimators_
+        ]
+        return np.mean(outputs, axis=0)
+    
+    def _more_tags(self):
+        return {"multioutput": True}
+
 
 
 # MultiOutputVotingClassifier is not yet in scikit-learn
@@ -50,9 +86,16 @@ class MultiOutputVotingClassifier(_BaseComposition, ClassifierMixin):
             ])
         return probas.argmax(axis=1).reshape(-1, 1)
     
+    # def decision_function(self, X):
+    #     return self.predict_proba(X)
+    
     @property
     def classes_(self):
         return self.estimators_[0].classes_
+
+    @property
+    def n_features_in_(self):
+        return self.estimators_[0].n_features_in_
 
     def _more_tags(self):
         return {"multioutput": True}
@@ -70,6 +113,7 @@ class ProbaTransformer(
     def __init__(self, estimator):
         self.estimator = estimator
 
+    @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X, y):
         self.estimator_ = clone(self.estimator)
         self.estimator_.fit(X, y)
@@ -82,6 +126,7 @@ class ProbaTransformer(
             return np.hstack(proba)
         return proba
 
+    @_fit_context(prefer_skip_nested_validation=False)
     def fit_transform(self, X, y):
         self.estimator_ = clone(self.estimator)
 
@@ -110,7 +155,9 @@ class EstimatorAsTransformer(
     def __init__(self, estimator):
         self.estimator = estimator
 
+    @_fit_context(prefer_skip_nested_validation=False)
     def fit(self, X, y):
+        self._validate_params()
         self.estimator_ = clone(self.estimator)
         self.estimator_.fit(X, y)
         return self
@@ -119,7 +166,9 @@ class EstimatorAsTransformer(
         # Use predictions as new features.
         return self.estimator_.predict(X)
     
+    @_fit_context(prefer_skip_nested_validation=False)
     def fit_transform(self, X, y):
+        self._validate_params()
         self.estimator_ = clone(self.estimator)
         if hasattr(self.estimator_, "fit_predict"):
             return self.estimator_.fit_predict(X, y)
@@ -134,10 +183,68 @@ class EstimatorAsSampler(
         self.estimator = estimator
 
     # def _fit_resample(self, X, y):  # FIXME
+    @_fit_context(prefer_skip_nested_validation=False)
     def fit_resample(self, X, y):
+        self._validate_params()
         estimator = clone(self.estimator)
         if hasattr(estimator, "fit_predict"):
             yt = estimator.fit_predict(X, y)
         else:
             yt = estimator.fit(X, y).predict(X)
         return X, yt.reshape(len(X[0]), len(X[1]))
+
+
+class TreeEmbedderWithOutput(
+    BaseEstimator,
+    MetaEstimatorMixin,
+    TransformerMixin,
+):
+    _parameter_constraints = {
+        "estimator": [BaseTreeEmbedder],
+        "method": [
+            StrOptions({
+                "predict", "predict_proba", "predict_log_proba", "decision_function"
+            })
+        ],
+        "post_transformer": [HasMethods(["fit", "transform"])],
+    }
+
+    def __init__(self, estimator, method="predict", post_transformer=None):
+        self.estimator = estimator
+        self.method = method
+        self.post_transformer = post_transformer
+
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit(self, X, y):
+        self._validate_params()
+        self.estimator_ = clone(self.estimator)
+        self.estimator_.fit(X, y)
+        if self.post_transformer is not None:
+            self.post_transformer_ = clone(self.post_transformer)
+            Xt = self.estimator_.transform(X)
+            self.post_transformer_.fit(Xt)
+        return self
+
+    def transform(self, X):
+        # Use tree predictions as new features, but still add proba.
+        Xt = self.estimator_.transform(X)
+        if self.post_transformer is not None:
+            Xt = self.post_transformer_.transform(Xt)
+        return _hstack([
+            Xt,
+            getattr(self.estimator_.estimator_, self.method)(X),
+        ])
+    
+    @_fit_context(prefer_skip_nested_validation=False)
+    def fit_transform(self, X, y):
+        self._validate_params()
+        self.estimator_ = clone(self.estimator)
+        Xt = self.estimator_.fit_transform(X, y)
+        if self.post_transformer is not None:
+            self.post_transformer_ = clone(self.post_transformer)
+            Xt = self.post_transformer_.fit_transform(Xt, y)
+        return _hstack([
+            Xt,
+            getattr(self.estimator_.estimator_, self.method)(X),
+        ])
+

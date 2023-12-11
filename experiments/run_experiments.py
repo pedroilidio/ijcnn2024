@@ -17,6 +17,7 @@ from pathlib import Path
 import requests
 import numpy as np
 import yaml
+import joblib
 
 DEF_PATH_CONFIG = Path("config.yml")
 DEF_PATH_LOG = Path("experiments.log")
@@ -431,6 +432,11 @@ def run_experiments(
     )
     logging.info("Starting a new series of runs.")
 
+    # Add custom constructors
+    yaml.add_constructor("!callable", load_callable)
+    yaml.add_constructor("!object", load_object)
+    yaml.add_constructor("!estimator", load_estimator)
+
     for var in [
         "OMP_NUM_THREADS",
         "MKL_NUM_THREADS",
@@ -455,6 +461,12 @@ def run_experiments(
                 continue
             run_path = Path(finished_run["path"])
             run_path.parent.mkdir(exist_ok=True, parents=True)
+
+            if "estimator" in finished_run["results"]:
+                joblib.dump(
+                    finished_run["results"].pop("estimator"),
+                    run_path.with_suffix(".joblib"),
+                )
 
             with run_path.open("w") as out:
                 yaml.dump(finished_run, out)

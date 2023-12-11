@@ -17,7 +17,7 @@ def load_estimator_dataset(path):
 
 print("Inspecting runs...")
 df = pd.DataFrame.from_records(
-    [load_estimator_dataset(p) for p in tqdm(list(RUNS_DIR.glob("*")))],
+    [load_estimator_dataset(p) for p in tqdm(list(RUNS_DIR.glob("*.yml")))],
     columns=["model", "dataset"],
 )
 crosstab = pd.crosstab(df["dataset"], df["model"])

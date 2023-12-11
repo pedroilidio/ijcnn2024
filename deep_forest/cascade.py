@@ -1,4 +1,4 @@
-from numbers import Integral, Real
+from numbers import Integral, Number, Real
 
 import joblib
 import numpy as np
@@ -146,8 +146,8 @@ class Cascade(Pipeline):
             None,
         ],
         "memory": [None, str, HasMethods(["cache"])],
-        "verbose": ["boolean"],
-        "max_levels": [Interval(Integral, 1, None, closed="left")],
+        "verbose": ["verbose"],
+        "max_levels": [Interval(Integral, 0, None, closed="left")],
         "min_levels": [Interval(Integral, 0, None, closed="left")],
         "scoring": [
             None,
@@ -166,6 +166,7 @@ class Cascade(Pipeline):
             None,
             Interval(Integral, 0, None, closed="left"),
             Interval(Real, 0, 1, closed="neither"),
+            StrOptions({"train"}),
             tuple,
         ],
         "inter_level_sampler": [HasMethods(["fit_resample"]), None],
@@ -317,13 +318,12 @@ class Cascade(Pipeline):
 
     def _stop_criterion(self, X, X_val, y, y_val):
         """Return True if the cascade should stop training."""
-        # TODO: OOB scores to avoid validation set
         if not self.collect_scores_:
             return False
 
         with _print_elapsed_time(
             self.__class__.__name__,
-            "Fit and score final estimator"
+            self._log_message(message="Fit and score final estimator")
         ):
             estimator = clone(self.final_estimator).fit(X, y)
 
@@ -395,10 +395,12 @@ class Cascade(Pipeline):
             fit_params_steps[step][param] = pval
         return fit_params_steps
 
-    def _log_message(self, step_idx, step_name):
+    def _log_message(self, step_idx=None, step_name=None, message=None):
         if not self.verbose:
             return None
-        if step_name == "final_estimator":
+        if message is not None:
+            return message
+        elif step_name == "final_estimator":
             return "Fitting final estimator"
         elif step_name == "sampler":
             return f"(level {step_idx + 1} of {self.max_levels}) " "Resampling data"
@@ -444,6 +446,7 @@ class Cascade(Pipeline):
         self : Pipeline
             This estimator.
         """
+        self._validate_params()
         # We override this method only to correct log printing and docstring.
         self._validate_steps()
         self._validate_scorer()
@@ -452,7 +455,11 @@ class Cascade(Pipeline):
         fit_params_steps = self._check_fit_params(**fit_params)
         Xt, yt = self._fit(X, y, **fit_params_steps)
 
-        if self.refit and self.collect_scores_:
+        if (
+            self.refit
+            and self.collect_scores_
+            and isinstance(self.validation_size, Number)
+        ):
             print("Refitting...")
             Xt, yt = self._fit(X, y, final_fit=True, **fit_params_steps)
 
@@ -476,8 +483,13 @@ class Cascade(Pipeline):
         fit_transform_one_cached = memory.cache(_fit_transform_one)
         fit_resample_one_cached = memory.cache(_fit_resample_one)
 
+        original_X = X.copy()
+        original_y = y.copy()
+
         if final_fit or not self.collect_scores_:
             X_val, y_val = None, None
+        elif self.validation_size == "train":
+            X_val, y_val = original_X, original_y
         else:
             self.random_state_ = check_random_state(self.random_state)
             if isinstance(self.validation_size, tuple):
@@ -496,7 +508,6 @@ class Cascade(Pipeline):
                 )
 
         max_levels = self.n_levels_ if final_fit else self.max_levels
-        original_X = X
 
         # Initialize steps with the final estimator
         # FIXME: also done in __init__
@@ -573,22 +584,37 @@ class Cascade(Pipeline):
 
             last_level = fitted_transformer
 
-        if not final_fit:
-            self._trim_levels()
+        if final_fit:
+            return X, y
+
+        self._trim_levels()
+
+        if self.trimmed_steps_:
+            # HACK: we need to recover the intermediate X and y after trimming.
+            # we could just set a "refit_" to refit the remaining steps in
+            # self.fit(), but there is no need for refitting the levels, we can
+            # use transform only.
+            with _print_elapsed_time(
+                self.__class__.__name__,
+                self._log_message(message="Resampling after trimming")
+            ):
+                X, y = self._apply_transformers_and_samplers(original_X, original_y)
 
         return X, y
 
     def _trim_levels(self):
         if not self.trim_to_best_score:
+            self.trimmed_steps_ = []
             return
 
         # TODO: Consider self.min_levels
         self.n_levels_ = np.argmax(self.level_scores_)
 
+        # TODO: tests
         # self.level_scores_[0] corresponds to the empty cascade, only the final
         # estimator.
         self.trim_index_ = self.n_levels_ - 1
-        if self.inter_level_sampler is None and self.trim_index_ >= 0:
+        if self.inter_level_sampler is not None and self.trim_index_ >= 0:
             self.trim_index_ *= 2
 
         # TODO: document trimmed_steps_
@@ -598,7 +624,8 @@ class Cascade(Pipeline):
         if self.verbose:
             print(
                 f"Trimmed to {self.n_levels_} levels."
-                f" Level scores: {self.level_scores_}"
+                f" Level scores: {self.level_scores_[1:]}"
+                f" Score without levels: {self.level_scores_[0]}"
             )
 
     # FIXME: maybe not needed anymore, it can simply be in a pipeline (or list of
@@ -629,6 +656,15 @@ class Cascade(Pipeline):
         for _, name, transform in self._iter(with_final=False):
             Xt = self._combine_features(X, transform.transform(Xt))
         return Xt
+
+    def _apply_transformers_and_samplers(self, X, y):
+        Xt, yt = X, y
+        for _, name, transform in self._iter(with_final=False, filter_resample=False):
+            if hasattr(transform, "fit_resample"):
+                Xt, yt = clone(transform).fit_resample(Xt, yt)  # Should modify only y
+            elif hasattr(transform, "transform"):
+                Xt = self._combine_features(X, transform.transform(Xt))
+        return Xt, yt
 
     @available_if(_final_estimator_has("predict"))
     def predict(self, X, **predict_params):
