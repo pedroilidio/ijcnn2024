@@ -1,0 +1,230 @@
+defaults:
+  aliases:
+    estimator:
+      params:
+        trim_to_best_score: false
+        min_levels: 0
+        scoring:
+          !!python/name:nakano_datasets_v2.estimators.level_scorers ''
+        # memory: !!python/object/new:joblib.Memory
+        #   location: nakano_datasets_per_level/estimators_cache
+        #   compress: true
+    dataset:
+      call: data_loaders.load_nakano
+
+  runs:
+    directory: nakano_datasets_per_level/runs
+    dataset:              # n_samples  n_features  n_labels   y_size
+    - VirusGO             #     207         749         6     1242
+    - VirusPseAAC         #     207         440         6     1242
+    - flags               #     194          19         7     1358
+    - Gram_positive       #     519         912         4     2076
+    - GrampositivePseAAC  #     519         440         4     2076
+    - CHD_49              #     555          49         6     3330
+    - emotions            #     593          72         6     3558
+    - Gram_negative       #    1392        1717         8    11136
+    - PlantGO             #     978        3091        12    11736
+    - birds               #     645         260        19    12255
+    - scene               #    2407         294         6    14442
+    - genbase             #     662        1185        27    17874
+    - yeast               #    2417         103        14    33838
+    - medical             #     978        1449        45    44010
+    - CAL500              #     502          68       174    87348
+    - enron               #    1702        1001        53    90206
+    - LLOG                #    1460          75      1004  1465840
+    active: false
+    metaestimator: null
+    cv:
+      call: sklearn.model_selection.cross_validate
+      params:
+        # error_score: raise  # debug
+        # n_jobs: 1  # debug
+        n_jobs: 5
+        return_estimator: true
+        return_train_score: true
+        scoring:
+          !!python/name:nakano_datasets_v2.estimators.level_scorers ''
+        cv:
+          !!python/object/apply:nakano_datasets_v2.estimators.make_iterative_stratification
+          kwds: {n_splits: 5}
+        verbose: 10
+
+aliases:
+  dataset:
+  - name: CAL500
+    params:
+      path: nakano_datasets_v2/datasets/MLC/CAL500.csv
+  
+  - name: CHD_49
+    params:
+      path: nakano_datasets_v2/datasets/MLC/CHD_49.csv
+  
+  - name: Gram_negative
+    params:
+      path: nakano_datasets_v2/datasets/MLC/Gram_negative.csv
+  
+  - name: Gram_positive
+    params:
+      path: nakano_datasets_v2/datasets/MLC/Gram_positive.csv
+  
+  - name: GrampositivePseAAC
+    params:
+      path: nakano_datasets_v2/datasets/MLC/GrampositivePseAAC.csv
+  
+  - name: LLOG
+    params:
+      path: nakano_datasets_v2/datasets/MLC/LLOG.csv
+  
+  - name: PlantGO
+    params:
+      path: nakano_datasets_v2/datasets/MLC/PlantGO.csv
+
+  - name: VirusGO
+    params:
+      path: nakano_datasets_v2/datasets/MLC/VirusGO.csv
+  
+  - name: VirusPseAAC
+    params:
+      path: nakano_datasets_v2/datasets/MLC/VirusPseAAC.csv
+
+  - name: VirusPseAAC
+    params:
+      path: nakano_datasets_v2/datasets/MLC/VirusPseAAC.csv
+  
+  - name: emotions
+    params:
+      path: nakano_datasets_v2/datasets/MLC/emotions.csv
+  
+  - name: flags
+    params:
+      path: nakano_datasets_v2/datasets/MLC/flags.csv
+  
+  - name: medical
+    params:
+      path: nakano_datasets_v2/datasets/MLC/medical.csv
+  
+  - name: yeast
+    params:
+      path: nakano_datasets_v2/datasets/MLC/yeast.csv
+
+  - name: scene
+    params:
+      path: nakano_datasets_v2/datasets/MLC/scene.csv
+
+  - name: genbase
+    params:
+      path: nakano_datasets_v2/datasets/MLC/genbase.csv
+  
+  - name: enron
+    params:
+      path: nakano_datasets_v2/datasets/MLC/enron.csv
+
+  - name: birds
+    params:
+      path: nakano_datasets_v2/datasets/MLC/birds.csv
+
+
+  estimator:
+  - name: proba
+    call: nakano_datasets_v2.estimators.cascade_proba
+
+  - name: proba_weak
+    call: nakano_datasets_v2.estimators.cascade_weak_label_proba
+
+  - name: embedding
+    call: nakano_datasets_v2.estimators.cascade_tree_embedder
+
+  - name: embedding_chi2
+    call: nakano_datasets_v2.estimators.cascade_tree_embedder_pvalue
+
+  - name: embedding_proba
+    call: nakano_datasets_v2.estimators.cascade_tree_embedder_proba
+
+  - name: embedding_weak
+    call: nakano_datasets_v2.estimators.cascade_weak_label_tree_embedder
+
+  - name: embedding_weak_chi2
+    call: nakano_datasets_v2.estimators.cascade_weak_label_tree_embedder_pvalue
+
+  - name: embedding_proba_weak
+    call: nakano_datasets_v2.estimators.cascade_weak_label_tree_embedder_proba
+
+
+  wrapper:
+    - name: drop90
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.9
+        random_state: 0
+    - name: drop80
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.8
+        random_state: 0
+    - name: drop70
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.7
+        random_state: 0
+    - name: drop60
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.6
+        random_state: 0
+    - name: drop50
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.5
+        random_state: 0
+    - name: drop40
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.4
+        random_state: 0
+    - name: drop30
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.3
+        random_state: 0
+    - name: drop20
+      call: positive_dropper.wrap_estimator
+      params:
+        drop: 0.2
+        random_state: 0
+
+
+runs:
+  - wrapper:
+    - null
+    # - drop20
+    # - drop30
+    # - drop40
+    - drop50
+    # - drop60
+    - drop70
+    # - drop80
+    - drop90
+    estimator:
+    - proba
+    - embedding
+    - embedding_proba
+    - proba_weak
+    - embedding_weak
+    - embedding_proba_weak
+    # - embedding_chi2
+    # - embedding_weak_chi2
+
+   # TODO: use sklearn metadata routing to get scorers that return per level.
+    modify_params:
+    - max_levels: 0
+    - max_levels: 1
+    - max_levels: 2
+    - max_levels: 3
+    - max_levels: 4
+    - max_levels: 5
+    - max_levels: 6
+    - max_levels: 7
+    - max_levels: 8
+    - max_levels: 9
+    - max_levels: 10
+    active: true
