@@ -4,24 +4,22 @@ defaults:
       params:
         trim_to_best_score: false
         min_levels: 0
-        scoring:
-          !!python/name:nakano_datasets_v2.estimators.level_scorers ''
-        # memory: !!python/object/new:joblib.Memory
-        #   location: nakano_datasets_per_level/estimators_cache
-        #   compress: true
+        scoring: null
+        #  !!python/name:nakano_datasets_v2.scoring.level_scorers ''
     dataset:
       call: data_loaders.load_nakano
 
   runs:
     directory: nakano_datasets_per_level/runs
     dataset:              # n_samples  n_features  n_labels   y_size
-    - VirusGO             #     207         749         6     1242
-    - VirusPseAAC         #     207         440         6     1242
-    - flags               #     194          19         7     1358
-    - Gram_positive       #     519         912         4     2076
-    - GrampositivePseAAC  #     519         440         4     2076
-    - CHD_49              #     555          49         6     3330
-    - emotions            #     593          72         6     3558
+    # Ran, but with different Cascade scoring parameter:
+    # - VirusGO             #     207         749         6     1242
+    # - VirusPseAAC         #     207         440         6     1242
+    # - flags               #     194          19         7     1358
+    # - Gram_positive       #     519         912         4     2076
+    # - GrampositivePseAAC  #     519         440         4     2076
+    # - CHD_49              #     555          49         6     3330
+    # - emotions            #     593          72         6     3558
     - Gram_negative       #    1392        1717         8    11136
     - PlantGO             #     978        3091        12    11736
     - birds               #     645         260        19    12255
@@ -43,7 +41,7 @@ defaults:
         return_estimator: true
         return_train_score: true
         scoring:
-          !!python/name:nakano_datasets_v2.estimators.level_scorers ''
+          !!python/name:nakano_datasets_v2.scoring.level_scorers ''
         cv:
           !!python/object/apply:nakano_datasets_v2.estimators.make_iterative_stratification
           kwds: {n_splits: 5}
@@ -194,6 +192,44 @@ aliases:
 
 
 runs:
+  # Score with CV each intermediate depth. Cascades do not score each level and
+  # models are not saved.
+  - wrapper:
+    - null
+    # - drop20
+    # - drop30
+    # - drop40
+    - drop50
+    # - drop60
+    - drop70
+    # - drop80
+    - drop90
+    estimator:
+    - proba
+    - embedding
+    - embedding_proba
+    - proba_weak
+    - embedding_weak
+    - embedding_proba_weak
+    # - embedding_chi2
+    # - embedding_weak_chi2
+    modify_params:
+    - max_levels: 0
+    - max_levels: 1
+    - max_levels: 2
+    - max_levels: 3
+    - max_levels: 4
+    - max_levels: 5
+    - max_levels: 6
+    - max_levels: 7
+    - max_levels: 8
+    - max_levels: 9
+    cv:
+      params:
+        return_estimator: false
+    active: true
+
+  # Run util the final depth, Cascades score each level and models are saved.
   - wrapper:
     - null
     # - drop20
@@ -214,17 +250,11 @@ runs:
     # - embedding_chi2
     # - embedding_weak_chi2
 
-   # TODO: use sklearn metadata routing to get scorers that return per level.
+    # Collect the internal level_scores for all levels
     modify_params:
-    - max_levels: 0
-    - max_levels: 1
-    - max_levels: 2
-    - max_levels: 3
-    - max_levels: 4
-    - max_levels: 5
-    - max_levels: 6
-    - max_levels: 7
-    - max_levels: 8
-    - max_levels: 9
     - max_levels: 10
+      scoring: !!python/name:nakano_datasets_v2.scoring.level_scorers ''
+    cv:
+      params:
+        return_estimator: true
     active: true
