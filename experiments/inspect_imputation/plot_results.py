@@ -18,8 +18,8 @@ def plot_results(input_tables_dir: Path, out_dir: Path):
         for f in input_tables_dir.glob("*.tsv")
     ]
     data = pd.concat(data) if len(data) > 1 else data[0]
-    out_dir.mkdir(exist_ok=True, parents=True)
     metrics = ["tp", "fn", "fp"]
+    # FIXME: some metrics, such as precision_micro and f1_micro have equal values?
 
     if data.dataset.nunique() > 1:
         # Combine all datasets to also calculate the metrics for them together
@@ -37,17 +37,21 @@ def plot_results(input_tables_dir: Path, out_dir: Path):
         allsets = allsets.assign(dataset="all", fold=allsets.dataset)
         data = pd.concat([data, allsets])
 
+    out_dir.mkdir(exist_ok=True, parents=True)
+
     for gname, group in tqdm(list(data.groupby(["dataset", "estimator"]))):
         lines = group.drop(columns="fold").groupby("level").mean(numeric_only=True)
-        lines['precision'] = lines.tp / (lines.tp + lines.fp)
+        lines['precision_missing'] = lines.tp / (lines.tp + lines.fp)
+        # Just the blue area border:
+        # lines['recall_missing'] = lines.tp / (lines.tp + lines.fn)
 
         sns.set_theme()
         ax = lines.plot.area(y=metrics)
         for col, style in (
-            ('precision', '-'),
+            ('precision_missing', '-'),
             ('precision_micro', '--'),
-            ('recall_samples', ':'),
-            ('precision_samples', '-.'),
+            ('average_precision_micro', ':'),
+            ('matthews_corrcoef_micro', '-.'),
         ):
             ax = lines.plot(
                 ax=ax,

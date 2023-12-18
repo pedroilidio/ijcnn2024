@@ -19,21 +19,28 @@ def parse_level_scores(dir_models: Path, output_path: Path):
     score_records = []
 
     for path_model in tqdm(list(dir_models.glob("*.joblib"))):
+        # for path_model in tqdm(list(dir_models.glob("*__10*.joblib"))):
         models = joblib.load(path_model)
 
         with open(path_model.with_suffix(".yml"), "r") as file_metadata:
             metadata = yaml.unsafe_load(file_metadata)
 
-        score_records.extend(
-            {
-                "estimator": metadata["estimator"]["name"],
-                "dataset": metadata["dataset"]["name"],
-                "level": level,
-                "fold": fold,
-            } | level_scores
-            for fold, model in enumerate(models)
-            for level, level_scores  in enumerate(model.level_scores_)
-        )
+        for fold, model in enumerate(models):
+            for level, level_scores  in enumerate(model.level_scores_):
+                score_records.append(
+                    {
+                        "estimator.name": metadata["estimator"]["name"],
+                        "wrapper.name": (
+                            metadata["wrapper"] and metadata["wrapper"]["name"]
+                        ),
+                        "dataset.name": metadata["dataset"]["name"],
+                        "estimator.level": level,
+                        "cv.fold": fold,
+                    } | {
+                        "results.internal__" + metric: value
+                        for metric, value in level_scores.items()
+                    }
+                )
 
     df_scores = pd.DataFrame.from_records(score_records)
     df_scores.to_csv(output_path, index=False, sep="\t")
