@@ -330,6 +330,10 @@ class BaseTreeEmbedder(
         self.estimator_ = clone(self.estimator)
         self.estimator_.fit(X, y)
         return self
+    
+    @property
+    def n_features_in_(self):
+        return self.estimator_.n_features_in_
 
 
 class TreeEmbedder(BaseTreeEmbedder):
