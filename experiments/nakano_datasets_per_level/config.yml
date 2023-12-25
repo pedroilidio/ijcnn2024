@@ -1,35 +1,30 @@
 defaults:
   aliases:
     estimator:
-      params:
-        trim_to_best_score: false
-        min_levels: 0
-        scoring: null
-        #  !!python/name:nakano_datasets_v2.scoring.level_scorers ''
+      params: {}
     dataset:
       call: data_loaders.load_nakano
 
   runs:
     directory: nakano_datasets_per_level/runs
     dataset:              # n_samples  n_features  n_labels   y_size
-    # Ran, but with different Cascade scoring parameter:
-    # - VirusGO             #     207         749         6     1242
-    # - VirusPseAAC         #     207         440         6     1242
-    # - flags               #     194          19         7     1358
-    # - Gram_positive       #     519         912         4     2076
-    # - GrampositivePseAAC  #     519         440         4     2076
-    # - CHD_49              #     555          49         6     3330
-    # - emotions            #     593          72         6     3558
-    - Gram_negative       #    1392        1717         8    11136
-    - PlantGO             #     978        3091        12    11736
-    - birds               #     645         260        19    12255
-    - scene               #    2407         294         6    14442
-    - genbase             #     662        1185        27    17874
-    - yeast               #    2417         103        14    33838
-    - medical             #     978        1449        45    44010
-    - CAL500              #     502          68       174    87348
-    - enron               #    1702        1001        53    90206
-    - LLOG                #    1460          75      1004  1465840
+    - VirusGO             #     207         749         6     1242
+    - VirusPseAAC         #     207         440         6     1242
+    - flags               #     194          19         7     1358
+    - Gram_positive       #     519         912         4     2076
+    - GrampositivePseAAC  #     519         440         4     2076
+    - CHD_49              #     555          49         6     3330
+    - emotions            #     593          72         6     3558
+    # - Gram_negative       #    1392        1717         8    11136
+    # - PlantGO             #     978        3091        12    11736
+    # - birds               #     645         260        19    12255
+    # - scene               #    2407         294         6    14442
+    # - genbase             #     662        1185        27    17874
+    # - yeast               #    2417         103        14    33838
+    # - medical             #     978        1449        45    44010
+    # - CAL500              #     502          68       174    87348
+    # - enron               #    1702        1001        53    90206
+    # - LLOG                #    1460          75      1004  1465840
     active: false
     metaestimator: null
     cv:
@@ -201,9 +196,9 @@ runs:
     # - drop40
     - drop50
     # - drop60
-    - drop70
+    # - drop70
     # - drop80
-    - drop90
+    # - drop90
     estimator:
     - proba
     - embedding
@@ -226,10 +221,9 @@ runs:
     - max_levels: 9
     cv:
       params:
-        return_estimator: false
+        return_estimator: true
     active: true
 
-  # Run util the final depth, Cascades score each level and models are saved.
   - wrapper:
     - null
     # - drop20
@@ -237,9 +231,20 @@ runs:
     # - drop40
     - drop50
     # - drop60
-    - drop70
+    # - drop70
     # - drop80
-    - drop90
+    # - drop90
+    dataset:
+    - Gram_negative       #    1392        1717         8    11136
+    - PlantGO             #     978        3091        12    11736
+    - birds               #     645         260        19    12255
+    - scene               #    2407         294         6    14442
+    - genbase             #     662        1185        27    17874
+    - yeast               #    2417         103        14    33838
+    - medical             #     978        1449        45    44010
+    - CAL500              #     502          68       174    87348
+    - enron               #    1702        1001        53    90206
+    - LLOG                #    1460          75      1004  1465840
     estimator:
     - proba
     - embedding
@@ -249,11 +254,63 @@ runs:
     - embedding_proba_weak
     # - embedding_chi2
     # - embedding_weak_chi2
-
-    # Collect the internal level_scores for all levels
     modify_params:
-    - max_levels: 10
-      scoring: !!python/name:nakano_datasets_v2.scoring.level_scorers ''
+    - max_levels: 0
+    - max_levels: 1
+    - max_levels: 2
+    - max_levels: 3
+    - max_levels: 4
+    - max_levels: 5
+    - max_levels: 6
+    - max_levels: 7
+    - max_levels: 8
+    - max_levels: 9
+    cv:
+      params:
+        return_estimator: true
+    active: true
+
+  - wrapper:
+    # - null
+    # - drop20
+    # - drop30
+    # - drop40
+    # - drop50
+    # - drop60
+    - drop70
+    # - drop80
+    - drop90
+    dataset:
+    - Gram_negative       #    1392        1717         8    11136
+    - PlantGO             #     978        3091        12    11736
+    - birds               #     645         260        19    12255
+    - scene               #    2407         294         6    14442
+    - genbase             #     662        1185        27    17874
+    - yeast               #    2417         103        14    33838
+    - medical             #     978        1449        45    44010
+    - CAL500              #     502          68       174    87348
+    - enron               #    1702        1001        53    90206
+    - LLOG                #    1460          75      1004  1465840
+    estimator:
+    - proba
+    - embedding
+    - embedding_proba
+    - proba_weak
+    - embedding_weak
+    - embedding_proba_weak
+    # - embedding_chi2
+    # - embedding_weak_chi2
+    modify_params:
+    - max_levels: 0
+    - max_levels: 1
+    - max_levels: 2
+    - max_levels: 3
+    - max_levels: 4
+    - max_levels: 5
+    - max_levels: 6
+    - max_levels: 7
+    - max_levels: 8
+    - max_levels: 9
     cv:
       params:
         return_estimator: true

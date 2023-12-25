@@ -1,0 +1,1722 @@
+active: true
+cv:
+  call: sklearn.model_selection.cross_validate
+  params:
+    cv: !!python/object:skmultilearn.model_selection.iterative_stratification.IterativeStratification
+      desired_samples_per_combination_per_fold:
+        ? !!python/tuple
+        - 0
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - &id001 !!python/name:numpy.ndarray ''
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - &id002 !!python/object/apply:numpy.dtype
+            args:
+            - f8
+            - false
+            - true
+            state: !!python/tuple
+            - 3
+            - <
+            - null
+            - null
+            - null
+            - -1
+            - -1
+            - 0
+          - false
+          - !!binary |
+            AJmZmZmZyb8AmZmZmZnJv8CZmZmZmek/AJmZmZmZyb8AmZmZmZnJvw==
+        ? !!python/tuple
+        - 1
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            mJmZmZmZ2b80MzMzMzPjPzQzMzMzM+M/mJmZmZmZ2b+YmZmZmZnZvw==
+        ? !!python/tuple
+        - 2
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            gJmZmZmZ2b+AmZmZmZnZv4CZmZmZmdm/QDMzMzMz4z9AMzMzMzPjPw==
+        ? !!python/tuple
+        - 3
+        : !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 5
+          - *id002
+          - false
+          - !!binary |
+            QDMzMzMz4z+AmZmZmZnZv4CZmZmZmdm/QDMzMzMz4z+AmZmZmZnZvw==
+      desired_samples_per_fold: !!python/object/apply:numpy.core.multiarray._reconstruct
+        args:
+        - *id001
+        - !!python/tuple
+          - 0
+        - !!binary |
+          Yg==
+        state: !!python/tuple
+        - 1
+        - !!python/tuple
+          - 5
+        - *id002
+        - false
+        - !!binary |
+          AJiZmZmZyb8AmJmZmZnJvwCYmZmZmcm/AM3MzMzM/D8AMzMzMzPzvw==
+      n_labels: 4
+      n_samples: 519
+      n_splits: 5
+      order: 1
+      percentage_per_fold:
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      - 0.2
+      random_state: null
+      shuffle: false
+    n_jobs: 5
+    return_estimator: true
+    return_train_score: true
+    scoring:
+      average_precision_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: &id003 !!python/tuple
+        - decision_function
+        - predict_proba
+        - predict
+        _score_func: &id004 !!python/name:sklearn.metrics._ranking.average_precision_score ''
+        _sign: 1
+      average_precision_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      average_precision_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      average_precision_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      average_precision_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      average_precision_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      average_precision_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      average_precision_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id004
+        _sign: 1
+      f1_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: &id005
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: &id006 !!python/name:sklearn.metrics._classification.f1_score ''
+        _sign: 1
+      f1_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: *id005
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      f1_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: &id007
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      f1_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: *id007
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      f1_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: &id008
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      f1_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: *id008
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      f1_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: &id009
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      f1_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: *id009
+        _response_method: predict
+        _score_func: *id006
+        _sign: 1
+      jaccard_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: &id010
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: &id011 !!python/name:sklearn.metrics._classification.jaccard_score ''
+        _sign: 1
+      jaccard_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: *id010
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      jaccard_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: &id012
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      jaccard_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: *id012
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      jaccard_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: &id013
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      jaccard_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: *id013
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      jaccard_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: &id014
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      jaccard_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: *id014
+        _response_method: predict
+        _score_func: *id011
+        _sign: 1
+      label_ranking_average_precision_score: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: &id015 !!python/name:sklearn.metrics._ranking.label_ranking_average_precision_score ''
+        _sign: 1
+      label_ranking_average_precision_score_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id015
+        _sign: 1
+      matthews_corrcoef_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: &id016 !!python/name:sklearn.metrics._classification.matthews_corrcoef ''
+        _sign: 1
+      matthews_corrcoef_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      matthews_corrcoef_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      matthews_corrcoef_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      matthews_corrcoef_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      matthews_corrcoef_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      matthews_corrcoef_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      matthews_corrcoef_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id016
+        _sign: 1
+      ndgc: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: &id017 !!python/name:sklearn.metrics._ranking.ndcg_score ''
+        _sign: 1
+      ndgc_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id017
+        _sign: 1
+      neg_coverage_error: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: &id018 !!python/name:sklearn.metrics._ranking.coverage_error ''
+        _sign: -1
+      neg_coverage_error_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id018
+        _sign: -1
+      neg_hamming_loss_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: &id019 !!python/name:sklearn.metrics._classification.hamming_loss ''
+        _sign: -1
+      neg_hamming_loss_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_hamming_loss_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_hamming_loss_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_hamming_loss_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_hamming_loss_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_hamming_loss_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_hamming_loss_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: predict
+        _score_func: *id019
+        _sign: -1
+      neg_label_ranking_loss: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: &id020 !!python/name:sklearn.metrics._ranking.label_ranking_loss ''
+        _sign: -1
+      neg_label_ranking_loss_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: null
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id020
+        _sign: -1
+      precision_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: &id021
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: &id022 !!python/name:sklearn.metrics._classification.precision_score ''
+        _sign: 1
+      precision_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: *id021
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      precision_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: &id023
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      precision_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: *id023
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      precision_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: &id024
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      precision_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: *id024
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      precision_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: &id025
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      precision_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: *id025
+        _response_method: predict
+        _score_func: *id022
+        _sign: 1
+      recall_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: &id026
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: &id027 !!python/name:sklearn.metrics._classification.recall_score ''
+        _sign: 1
+      recall_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: *id026
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      recall_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: &id028
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      recall_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: *id028
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      recall_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: &id029
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      recall_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: *id029
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      recall_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: &id030
+          average: micro
+          pos_label: null
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      recall_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: *id030
+        _response_method: predict
+        _score_func: *id027
+        _sign: 1
+      roc_auc_macro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: &id031 !!python/name:sklearn.metrics._ranking.roc_auc_score ''
+        _sign: 1
+      roc_auc_macro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: macro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+      roc_auc_micro: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+      roc_auc_micro_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: micro
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+      roc_auc_samples: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+      roc_auc_samples_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: samples
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+      roc_auc_weighted: !!python/object:nakano_datasets_v2.scoring.MultiLabelScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+      roc_auc_weighted_oob: !!python/object:nakano_datasets_v2.scoring.OOBScorer
+        _average: weighted
+        _kwargs: {}
+        _response_method: *id003
+        _score_func: *id031
+        _sign: 1
+    verbose: 10
+dataset:
+  call: data_loaders.load_nakano
+  name: GrampositivePseAAC
+  params:
+    path: nakano_datasets_v2/datasets/MLC/GrampositivePseAAC.csv
+directory: nakano_datasets_per_level/runs
+end: 2023-12-21 20:46:15.768064
+estimator:
+  call: nakano_datasets_v2.estimators.cascade_weak_label_tree_embedder
+  final_params:
+    memory: null
+    steps:
+    - - dropper
+      - call: positive_dropper.PositiveDropper
+        params:
+          drop: 0.5
+          random_state: 0
+    - - estimator
+      - call: deep_forest.cascade.Cascade
+        params:
+          final_estimator:
+            call: deep_forest.estimator_adapters.MultiOutputVotingClassifier
+            params:
+              estimators:
+              - - rf
+                - call: sklearn.ensemble._forest.RandomForestClassifier
+                  params:
+                    bootstrap: true
+                    ccp_alpha: 0.0
+                    class_weight: null
+                    criterion: gini
+                    max_depth: null
+                    max_features: sqrt
+                    max_leaf_nodes: null
+                    max_samples: 0.9
+                    min_impurity_decrease: 0.0
+                    min_samples_leaf: 5
+                    min_samples_split: 2
+                    min_weight_fraction_leaf: 0.0
+                    monotonic_cst: null
+                    n_estimators: 150
+                    n_jobs: 14
+                    oob_score: true
+                    random_state: 0
+                    verbose: true
+                    warm_start: false
+              - - xt
+                - call: sklearn.ensemble._forest.ExtraTreesClassifier
+                  params:
+                    bootstrap: true
+                    ccp_alpha: 0.0
+                    class_weight: null
+                    criterion: gini
+                    max_depth: null
+                    max_features: sqrt
+                    max_leaf_nodes: null
+                    max_samples: 0.9
+                    min_impurity_decrease: 0.0
+                    min_samples_leaf: 5
+                    min_samples_split: 2
+                    min_weight_fraction_leaf: 0.0
+                    monotonic_cst: null
+                    n_estimators: 150
+                    n_jobs: 14
+                    oob_score: true
+                    random_state: 0
+                    verbose: true
+                    warm_start: false
+          keep_original_features: true
+          level:
+            call: deep_forest.cascade.SequentialLevel
+            params:
+              last_level: null
+              memory: null
+              steps:
+              - - alternating_forests
+                - call: deep_forest.cascade.AlternatingLevel
+                  params:
+                    last_level: null
+                    n_jobs: null
+                    sparse_threshold: 0.3
+                    transformer_weights: null
+                    transformers:
+                    - - xt_embedder
+                      - call: sklearn.pipeline.Pipeline
+                        params:
+                          memory: null
+                          steps:
+                          - - xt
+                            - call: deep_forest.tree_embedder.ForestEmbedder
+                              params:
+                                estimator:
+                                  call: sklearn.ensemble._forest.ExtraTreesRegressor
+                                  params:
+                                    bootstrap: true
+                                    ccp_alpha: 0.0
+                                    criterion: squared_error
+                                    max_depth: null
+                                    max_features: sqrt
+                                    max_leaf_nodes: null
+                                    max_samples: 0.5
+                                    min_impurity_decrease: 0.0
+                                    min_samples_leaf: 5
+                                    min_samples_split: 2
+                                    min_weight_fraction_leaf: 0.0
+                                    monotonic_cst: null
+                                    n_estimators: 150
+                                    n_jobs: 14
+                                    oob_score: false
+                                    random_state: 0
+                                    verbose: true
+                                    warm_start: false
+                                max_node_size: 0.8
+                                max_pvalue: 1.0
+                                method: path
+                                node_weights: log_node_size
+                          - - densifier
+                            - call: nakano_datasets_v2.estimators.Densifier
+                              params: {}
+                          - - pca
+                            - call: sklearn.decomposition._pca.PCA
+                              params:
+                                copy: true
+                                iterated_power: auto
+                                n_components: 0.8
+                                n_oversamples: 10
+                                power_iteration_normalizer: auto
+                                random_state: 0
+                                svd_solver: auto
+                                tol: 0.0
+                                whiten: false
+                          verbose: false
+                    - - rf_embedder
+                      - call: sklearn.pipeline.Pipeline
+                        params:
+                          memory: null
+                          steps:
+                          - - rf
+                            - call: deep_forest.tree_embedder.ForestEmbedder
+                              params:
+                                estimator:
+                                  call: sklearn.ensemble._forest.RandomForestRegressor
+                                  params:
+                                    bootstrap: true
+                                    ccp_alpha: 0.0
+                                    criterion: squared_error
+                                    max_depth: null
+                                    max_features: sqrt
+                                    max_leaf_nodes: null
+                                    max_samples: 0.5
+                                    min_impurity_decrease: 0.0
+                                    min_samples_leaf: 5
+                                    min_samples_split: 2
+                                    min_weight_fraction_leaf: 0.0
+                                    monotonic_cst: null
+                                    n_estimators: 150
+                                    n_jobs: 14
+                                    oob_score: false
+                                    random_state: 0
+                                    verbose: true
+                                    warm_start: false
+                                max_node_size: 0.95
+                                max_pvalue: 1.0
+                                method: path
+                                node_weights: log_node_size
+                          - - densifier
+                            - call: nakano_datasets_v2.estimators.Densifier
+                              params: {}
+                          - - pca
+                            - call: sklearn.decomposition._pca.PCA
+                              params:
+                                copy: true
+                                iterated_power: auto
+                                n_components: 0.8
+                                n_oversamples: 10
+                                power_iteration_normalizer: auto
+                                random_state: 0
+                                svd_solver: auto
+                                tol: 0.0
+                                whiten: false
+                          verbose: false
+                    verbose: false
+                    verbose_feature_names_out: true
+              - - weak_label_imputer
+                - call: deep_forest.weak_labels.SCARImputer
+                  params:
+                    estimator:
+                      call: deep_forest.estimator_adapters.MultiOutputVotingClassifier
+                      params:
+                        estimators:
+                        - - rf
+                          - call: sklearn.ensemble._forest.RandomForestClassifier
+                            params:
+                              bootstrap: true
+                              ccp_alpha: 0.0
+                              class_weight: null
+                              criterion: gini
+                              max_depth: null
+                              max_features: sqrt
+                              max_leaf_nodes: null
+                              max_samples: 0.5
+                              min_impurity_decrease: 0.0
+                              min_samples_leaf: 5
+                              min_samples_split: 2
+                              min_weight_fraction_leaf: 0.0
+                              monotonic_cst: null
+                              n_estimators: 150
+                              n_jobs: 14
+                              oob_score: true
+                              random_state: 0
+                              verbose: true
+                              warm_start: false
+                        - - xt
+                          - call: sklearn.ensemble._forest.ExtraTreesClassifier
+                            params:
+                              bootstrap: true
+                              ccp_alpha: 0.0
+                              class_weight: null
+                              criterion: gini
+                              max_depth: null
+                              max_features: sqrt
+                              max_leaf_nodes: null
+                              max_samples: 0.5
+                              min_impurity_decrease: 0.0
+                              min_samples_leaf: 5
+                              min_samples_split: 2
+                              min_weight_fraction_leaf: 0.0
+                              monotonic_cst: null
+                              n_estimators: 150
+                              n_jobs: 14
+                              oob_score: true
+                              random_state: 0
+                              verbose: true
+                              warm_start: false
+                    last_level: null
+                    threshold: 0.05
+                    verbose: true
+              verbose: false
+          max_levels: 5
+          memory:
+            call: joblib.memory.Memory
+            params: {}
+          verbose: 10
+          warm_start: false
+    verbose: false
+  name: embedding_weak__5
+  params: {}
+hash: ae501e892d5d7afa162fb6fc927552ccbfdac642ab105d08460dc1179d84261a
+metaestimator: null
+modify_params:
+  max_levels: 5
+path: /home/pedro/mestrado/biomal_repo/scripts/cascade_forests/experiments/nakano_datasets_per_level/runs/ae501e8_20231221T204510731031_embedding_weak__5_GrampositivePseAAC.yml
+results:
+  fit_time:
+  - 47.88733386993408
+  - 51.014928102493286
+  - 46.9775390625
+  - 48.19158577919006
+  - 47.4769082069397
+  score_time:
+  - 3.7123782634735107
+  - 3.8838584423065186
+  - 3.941103219985962
+  - 3.9031288623809814
+  - 3.4366867542266846
+  test_average_precision_macro:
+  - 0.4162780763904247
+  - 0.37639886356011637
+  - 0.3353495553146637
+  - 0.4057312458021483
+  - 0.40438040885017773
+  test_average_precision_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_average_precision_micro:
+  - 0.5104169373649662
+  - 0.4851108300808722
+  - 0.42461610312120746
+  - 0.44493796129294744
+  - 0.47819083556476294
+  test_average_precision_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_average_precision_samples:
+  - 0.7435897435897435
+  - 0.7115384615384616
+  - 0.6899038461538461
+  - 0.7026143790849673
+  - 0.6873015873015873
+  test_average_precision_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_average_precision_weighted:
+  - 0.5077631860831857
+  - 0.49707726568493293
+  - 0.41431507617256536
+  - 0.4492857823305361
+  - 0.4905780560229221
+  test_average_precision_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_f1_macro:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_f1_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_f1_micro:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_f1_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_f1_samples:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_f1_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_f1_weighted:
+  - 0.6720695970695971
+  - 0.6682234432234432
+  - 0.6714127218934911
+  - 0.6702488687782805
+  - 0.6782766439909298
+  test_f1_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_jaccard_macro:
+  - 0.6179965844675858
+  - 0.6193471865911176
+  - 0.6220580613695558
+  - 0.6148001105995873
+  - 0.6200865710888332
+  test_jaccard_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_jaccard_micro:
+  - 0.5969289827255279
+  - 0.5969289827255279
+  - 0.6
+  - 0.59375
+  - 0.6
+  test_jaccard_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_jaccard_samples:
+  - 0.5974358974358972
+  - 0.5974358974358972
+  - 0.5999999999999999
+  - 0.5947712418300652
+  - 0.5999999999999999
+  test_jaccard_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_jaccard_weighted:
+  - 0.5134611510617555
+  - 0.5081101940770957
+  - 0.5117677545217768
+  - 0.5111687968785424
+  - 0.519653715644667
+  test_jaccard_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_label_ranking_average_precision_score:
+  - 0.7435897435897435
+  - 0.7115384615384616
+  - 0.6899038461538461
+  - 0.7026143790849674
+  - 0.6873015873015873
+  test_label_ranking_average_precision_score_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_matthews_corrcoef_macro:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  test_matthews_corrcoef_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_matthews_corrcoef_micro:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  test_matthews_corrcoef_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_matthews_corrcoef_samples:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  test_matthews_corrcoef_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_matthews_corrcoef_weighted:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  test_matthews_corrcoef_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_ndgc:
+  - 0.8096571955383423
+  - 0.7851104728638295
+  - 0.7688275266752018
+  - 0.779314121742487
+  - 0.767305782042262
+  test_ndgc_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_neg_coverage_error:
+  - -1.6826923076923077
+  - -1.7596153846153846
+  - -1.8173076923076923
+  - -1.803921568627451
+  - -1.7904761904761906
+  test_neg_coverage_error_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_neg_hamming_loss_macro:
+  - -0.25240384615384615
+  - -0.25240384615384615
+  - -0.25
+  - -0.2549019607843137
+  - -0.25
+  test_neg_hamming_loss_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_neg_hamming_loss_micro:
+  - -0.25240384615384615
+  - -0.25240384615384615
+  - -0.25
+  - -0.2549019607843137
+  - -0.25
+  test_neg_hamming_loss_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_neg_hamming_loss_samples:
+  - -0.25240384615384615
+  - -0.25240384615384615
+  - -0.25
+  - -0.2549019607843137
+  - -0.25
+  test_neg_hamming_loss_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_neg_hamming_loss_weighted:
+  - -0.327930402930403
+  - -0.3317765567765568
+  - -0.3285872781065089
+  - -0.3297511312217195
+  - -0.32172335600907026
+  test_neg_hamming_loss_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_neg_label_ranking_loss:
+  - -0.22275641025641024
+  - -0.2516025641025641
+  - -0.27243589743589747
+  - -0.25980392156862747
+  - -0.26349206349206344
+  test_neg_label_ranking_loss_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_precision_macro:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_precision_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_precision_micro:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_precision_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_precision_samples:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_precision_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_precision_weighted:
+  - 0.6720695970695971
+  - 0.6682234432234432
+  - 0.6714127218934911
+  - 0.6702488687782805
+  - 0.6782766439909298
+  test_precision_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_recall_macro:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_recall_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_recall_micro:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_recall_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_recall_samples:
+  - 0.7475961538461539
+  - 0.7475961538461539
+  - 0.75
+  - 0.7450980392156863
+  - 0.75
+  test_recall_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_recall_weighted:
+  - 0.6720695970695971
+  - 0.6682234432234432
+  - 0.6714127218934911
+  - 0.6702488687782805
+  - 0.6782766439909298
+  test_recall_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_roc_auc_macro:
+  - 0.7252891872036332
+  - 0.5632304684547823
+  - 0.608033231643247
+  - 0.692519636826104
+  - 0.6640663098975403
+  test_roc_auc_macro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_roc_auc_micro:
+  - 0.7877507273005665
+  - 0.7564232123717654
+  - 0.7377650394477318
+  - 0.7588246457489879
+  - 0.7504157218442933
+  test_roc_auc_micro_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_roc_auc_samples:
+  - 0.7772435897435899
+  - 0.7483974358974359
+  - 0.7275641025641026
+  - 0.7401960784313726
+  - 0.7365079365079366
+  test_roc_auc_samples_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  test_roc_auc_weighted:
+  - 0.6969733965582492
+  - 0.6357738650435274
+  - 0.599854861500805
+  - 0.6507598295962702
+  - 0.6355056577086281
+  test_roc_auc_weighted_oob:
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  - .nan
+  train_average_precision_macro:
+  - 0.7575947262794693
+  - 0.7739729291706097
+  - 0.7558123457334422
+  - 0.748722324970377
+  - 0.7667306320483758
+  train_average_precision_macro_oob:
+  - 0.49930272228122174
+  - 0.4823929609951302
+  - 0.5047940586612076
+  - 0.4654415158426611
+  - 0.5062315714625965
+  train_average_precision_micro:
+  - 0.79927883350735
+  - 0.7986917018324433
+  - 0.79764193235266
+  - 0.8142266199285624
+  - 0.8216392044848824
+  train_average_precision_micro_oob:
+  - 0.6275959593911247
+  - 0.611365686116883
+  - 0.6516122387848449
+  - 0.6108673822916851
+  - 0.6576262028217251
+  train_average_precision_samples:
+  - 0.8395582329317269
+  - 0.8504016064257028
+  - 0.841566265060241
+  - 0.8523181454836131
+  - 0.8641304347826086
+  train_average_precision_samples_oob:
+  - 0.738152610441767
+  - 0.7415662650602409
+  - 0.759437751004016
+  - 0.7462030375699441
+  - 0.7741545893719807
+  train_average_precision_weighted:
+  - 0.8017039761175279
+  - 0.800747773316594
+  - 0.7938312089011534
+  - 0.8097654951002594
+  - 0.8200048414794946
+  train_average_precision_weighted_oob:
+  - 0.6347992201816268
+  - 0.6122381170781337
+  - 0.6463023678030071
+  - 0.6079803412683996
+  - 0.6544297322782217
+  train_f1_macro:
+  - 0.7746987951807228
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777777
+  train_f1_macro_oob:
+  - 0.7481927710843373
+  - 0.7481927710843375
+  - 0.7475903614457831
+  - 0.748800959232614
+  - 0.7475845410628019
+  train_f1_micro:
+  - 0.7746987951807229
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777778
+  train_f1_micro_oob:
+  - 0.7481927710843373
+  - 0.7481927710843373
+  - 0.7475903614457832
+  - 0.7488009592326139
+  - 0.7475845410628019
+  train_f1_samples:
+  - 0.7746987951807229
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777778
+  train_f1_samples_oob:
+  - 0.7481927710843373
+  - 0.7481927710843373
+  - 0.7475903614457832
+  - 0.7488009592326139
+  - 0.7475845410628019
+  train_f1_weighted:
+  - 0.711287254280279
+  - 0.7032858707557503
+  - 0.7263651263766283
+  - 0.6964738471752431
+  - 0.7159004229942446
+  train_f1_weighted_oob:
+  - 0.6721392748025595
+  - 0.6731077419726753
+  - 0.6722834056991691
+  - 0.6725846053467489
+  - 0.6705614497376511
+  train_jaccard_macro:
+  - 0.6484313878760989
+  - 0.6403069336006202
+  - 0.6577067886250205
+  - 0.6366002282926551
+  - 0.6519068029914202
+  train_jaccard_macro_oob:
+  - 0.6190710753424093
+  - 0.618733163939055
+  - 0.618058301350835
+  - 0.6198490160831216
+  - 0.6185458874090012
+  train_jaccard_micro:
+  - 0.632251720747296
+  - 0.6234718826405868
+  - 0.6435643564356436
+  - 0.61863173216885
+  - 0.6363636363636364
+  train_jaccard_micro_oob:
+  - 0.5976900866217517
+  - 0.5976900866217517
+  - 0.596921596921597
+  - 0.5984666986104457
+  - 0.5969141755062681
+  train_jaccard_samples:
+  - 0.6401606425702809
+  - 0.6295582329317266
+  - 0.6539759036144577
+  - 0.6236610711430853
+  - 0.645088566827697
+  train_jaccard_samples_oob:
+  - 0.5980722891566264
+  - 0.5980722891566262
+  - 0.5974297188755018
+  - 0.5987210231814547
+  - 0.5974235104669885
+  train_jaccard_weighted:
+  - 0.5559824773315469
+  - 0.5467940870796848
+  - 0.5734361222615586
+  - 0.5389581601697843
+  - 0.5611544814674855
+  train_jaccard_weighted_oob:
+  - 0.5127799400277521
+  - 0.5141218848353318
+  - 0.5131819087293887
+  - 0.5133456829912962
+  - 0.511215336006445
+  train_label_ranking_average_precision_score:
+  - 0.8395582329317265
+  - 0.8504016064257024
+  - 0.8415662650602406
+  - 0.8523181454836128
+  - 0.8641304347826085
+  train_label_ranking_average_precision_score_oob:
+  - 0.7381526104417666
+  - 0.7415662650602407
+  - 0.7594377510040157
+  - 0.746203037569944
+  - 0.7741545893719801
+  train_matthews_corrcoef_macro:
+  - 0.1546859977959409
+  - 0.12830824793019022
+  - 0.17329603314841596
+  - 0.11137278019483315
+  - 0.16296817111497697
+  train_matthews_corrcoef_macro_oob:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  train_matthews_corrcoef_micro:
+  - 0.28443190960887627
+  - 0.2454911557408672
+  - 0.3303765541383419
+  - 0.21725726364552267
+  - 0.30365778035940094
+  train_matthews_corrcoef_micro_oob:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  train_matthews_corrcoef_samples:
+  - 0.10500566329925211
+  - 0.07849963920286657
+  - 0.1411502416125051
+  - 0.06235011990407674
+  - 0.11873116072072282
+  train_matthews_corrcoef_samples_oob:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  train_matthews_corrcoef_weighted:
+  - 0.22578411329979597
+  - 0.19026812917573532
+  - 0.2577852842055004
+  - 0.16613989089960549
+  - 0.2403495126558557
+  train_matthews_corrcoef_weighted_oob:
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  train_ndgc:
+  - 0.8806472522701024
+  - 0.8888875433282909
+  - 0.8824268722869443
+  - 0.8900702929409543
+  - 0.8989432963056182
+  train_ndgc_oob:
+  - 0.8053858616572436
+  - 0.8078448490091756
+  - 0.8210198383896636
+  - 0.8112093171175416
+  - 0.8322206697084681
+  train_neg_coverage_error:
+  - -1.419277108433735
+  - -1.3879518072289156
+  - -1.4289156626506023
+  - -1.3908872901678657
+  - -1.3695652173913044
+  train_neg_coverage_error_oob:
+  - -1.6698795180722892
+  - -1.6843373493975904
+  - -1.653012048192771
+  - -1.6666666666666667
+  - -1.5942028985507246
+  train_neg_hamming_loss_macro:
+  - -0.22530120481927712
+  - -0.2319277108433735
+  - -0.21686746987951808
+  - -0.2356115107913669
+  - -0.2222222222222222
+  train_neg_hamming_loss_macro_oob:
+  - -0.25180722891566265
+  - -0.25180722891566265
+  - -0.2524096385542169
+  - -0.2511990407673861
+  - -0.2524154589371981
+  train_neg_hamming_loss_micro:
+  - -0.2253012048192771
+  - -0.2319277108433735
+  - -0.21686746987951808
+  - -0.2356115107913669
+  - -0.2222222222222222
+  train_neg_hamming_loss_micro_oob:
+  - -0.25180722891566265
+  - -0.25180722891566265
+  - -0.2524096385542169
+  - -0.2511990407673861
+  - -0.2524154589371981
+  train_neg_hamming_loss_samples:
+  - -0.2253012048192771
+  - -0.2319277108433735
+  - -0.21686746987951808
+  - -0.2356115107913669
+  - -0.2222222222222222
+  train_neg_hamming_loss_samples_oob:
+  - -0.25180722891566265
+  - -0.25180722891566265
+  - -0.2524096385542169
+  - -0.2511990407673861
+  - -0.2524154589371981
+  train_neg_hamming_loss_weighted:
+  - -0.288712745719721
+  - -0.2967141292442497
+  - -0.2736348736233718
+  - -0.3035261528247569
+  - -0.2840995770057555
+  train_neg_hamming_loss_weighted_oob:
+  - -0.3278607251974405
+  - -0.32689225802732463
+  - -0.327716594300831
+  - -0.32741539465325115
+  - -0.32943855026234886
+  train_neg_label_ranking_loss:
+  - -0.13714859437751
+  - -0.12650602409638553
+  - -0.13875502008032128
+  - -0.12849720223820943
+  - -0.11956521739130434
+  train_neg_label_ranking_loss_oob:
+  - -0.22048192771084338
+  - -0.22489959839357426
+  - -0.21405622489959839
+  - -0.2200239808153477
+  - -0.19404186795491143
+  train_precision_macro:
+  - 0.7746987951807228
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777777
+  train_precision_macro_oob:
+  - 0.7481927710843373
+  - 0.7481927710843375
+  - 0.7475903614457831
+  - 0.748800959232614
+  - 0.7475845410628019
+  train_precision_micro:
+  - 0.7746987951807229
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777778
+  train_precision_micro_oob:
+  - 0.7481927710843373
+  - 0.7481927710843373
+  - 0.7475903614457832
+  - 0.7488009592326139
+  - 0.7475845410628019
+  train_precision_samples:
+  - 0.7746987951807229
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777778
+  train_precision_samples_oob:
+  - 0.7481927710843373
+  - 0.7481927710843373
+  - 0.7475903614457832
+  - 0.7488009592326139
+  - 0.7475845410628019
+  train_precision_weighted:
+  - 0.711287254280279
+  - 0.7032858707557503
+  - 0.7263651263766283
+  - 0.6964738471752431
+  - 0.7159004229942446
+  train_precision_weighted_oob:
+  - 0.6721392748025595
+  - 0.6731077419726753
+  - 0.6722834056991691
+  - 0.6725846053467489
+  - 0.6705614497376511
+  train_recall_macro:
+  - 0.7746987951807228
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777777
+  train_recall_macro_oob:
+  - 0.7481927710843373
+  - 0.7481927710843375
+  - 0.7475903614457831
+  - 0.748800959232614
+  - 0.7475845410628019
+  train_recall_micro:
+  - 0.7746987951807229
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777778
+  train_recall_micro_oob:
+  - 0.7481927710843373
+  - 0.7481927710843373
+  - 0.7475903614457832
+  - 0.7488009592326139
+  - 0.7475845410628019
+  train_recall_samples:
+  - 0.7746987951807229
+  - 0.7680722891566265
+  - 0.7831325301204819
+  - 0.7643884892086331
+  - 0.7777777777777778
+  train_recall_samples_oob:
+  - 0.7481927710843373
+  - 0.7481927710843373
+  - 0.7475903614457832
+  - 0.7488009592326139
+  - 0.7475845410628019
+  train_recall_weighted:
+  - 0.711287254280279
+  - 0.7032858707557503
+  - 0.7263651263766283
+  - 0.6964738471752431
+  - 0.7159004229942446
+  train_recall_weighted_oob:
+  - 0.6721392748025595
+  - 0.6731077419726753
+  - 0.6722834056991691
+  - 0.6725846053467489
+  - 0.6705614497376511
+  train_roc_auc_macro:
+  - 0.860835374304662
+  - 0.858537217928409
+  - 0.8395309136835454
+  - 0.8477545922150767
+  - 0.8631310385267109
+  train_roc_auc_macro_oob:
+  - 0.7279923207946808
+  - 0.7362891949882822
+  - 0.7061814431570698
+  - 0.7244882643446346
+  - 0.7459523569028002
+  train_roc_auc_micro:
+  - 0.8868066631224527
+  - 0.8881029979428149
+  - 0.8830606620651987
+  - 0.894380420804424
+  - 0.8999563271521438
+  train_roc_auc_micro_oob:
+  - 0.8077398700968496
+  - 0.8030803843160821
+  - 0.8151579198390704
+  - 0.8046074090776202
+  - 0.8312044430359199
+  train_roc_auc_samples:
+  - 0.8628514056224901
+  - 0.8734939759036144
+  - 0.8612449799196786
+  - 0.8715027977617906
+  - 0.8804347826086957
+  train_roc_auc_samples_oob:
+  - 0.7795180722891566
+  - 0.7751004016064258
+  - 0.7859437751004015
+  - 0.7799760191846523
+  - 0.8059581320450886
+  train_roc_auc_weighted:
+  - 0.8439872740034697
+  - 0.8406427005222197
+  - 0.8301128209170766
+  - 0.8488948309051507
+  - 0.8555120334227164
+  train_roc_auc_weighted_oob:
+  - 0.7403673928980635
+  - 0.7434352980437434
+  - 0.7475541439074928
+  - 0.7405321445586535
+  - 0.7767328565400025
+start: 2023-12-21 20:45:10.731031
+wrapper:
+  call: positive_dropper.wrap_estimator
+  name: drop50
+  params:
+    drop: 0.5
+    random_state: 0
