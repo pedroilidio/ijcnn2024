@@ -42,28 +42,33 @@ class PositiveDropper(BaseSampler):
         self.random_state = random_state
 
     # FIXME: we are skipping validation since imblearn does not support multilabel
-    def _fit_resample(self, X, y):
-        pass
-
     def fit_resample(self, X, y):
+        return self._fit_resample(X, y)
+
+    def _fit_resample(self, X, y):
         if set(np.unique(y)) != {0.0, 1.0}:
             raise ValueError("Only binary or multi-label classification is supported.")
 
         self.random_state_ = check_random_state(self.random_state)
         if y.ndim == 1:
             y = y.reshape(-1, 1)
+
         y_sample = y.copy()
+
+        self.n_samples_fit_ = X.shape[0]
+        self.masked_indices_ = []
 
         for j, y_col in enumerate(y.T):
             n_positives = int(y_col.sum())
-            index_positives = np.nonzero(y_col)
+            index_positives = np.nonzero(y_col)[0]
             positives_to_mask = self.random_state_.choice(
                 n_positives,
                 size=int(self.drop * n_positives),
                 replace=False,
             )
-            indices_to_mask = index_positives[0][positives_to_mask]
+            indices_to_mask = index_positives[positives_to_mask]
             y_sample[indices_to_mask, j] = 0.0
+            self.masked_indices_.append(indices_to_mask)
 
         return X, y_sample
 

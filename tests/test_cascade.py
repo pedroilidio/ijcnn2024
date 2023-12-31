@@ -94,11 +94,11 @@ def test_alternating_level_estimator(iris_data):
     for i, (name, level) in enumerate(cascade.levels_[1:]):
         assert level.last_level_ == cascade.levels_[i][1]
 
-        # Assert that some columns are indeed not selected
-        assert all(
-            not col_idx.all()
-            for col_idx in level._get_column_indices()
-        )
+        for col_idx in level._get_column_indices():
+            # Assert that some columns are indeed not selected
+            assert not col_idx.all()
+            # Assert that original X is considered by all
+            assert col_idx[-X.shape[1]:].all()
 
 
 def test_alternating_level_with_sampler(iris_data):
@@ -147,11 +147,11 @@ def test_alternating_level_with_sampler(iris_data):
             == cascade.levels_[i][1].named_steps["alternating"]
         )
 
-        # Assert that some columns are indeed not selected
-        assert all(
-            not col_idx.all()
-            for col_idx in level.named_steps["alternating"]._get_column_indices()
-        )
+        for col_idx in level.named_steps["alternating"]._get_column_indices():
+            # Assert that some columns are indeed not selected
+            assert not col_idx.all()
+            # Assert that original X is considered by all
+            assert col_idx[-X.shape[1]:].all()
 
 
 def test_cascade_warm_start(iris_data):

@@ -1,9 +1,20 @@
 import argparse
 from pathlib import Path
+import re
 import warnings
+
 import yaml
 import pandas as pd
 from tqdm import tqdm
+
+
+def sanitize_yaml(yaml_string):
+    # indent includes the newline
+    pattern = re.compile(r"(?P<indent>\s*)(?P<key>.*?)!!python/(?P<call>\S+)(.*)")
+    return pattern.sub(
+        r'\g<indent>\g<key>\g<indent>  call: "\g<call>"',
+        yaml_string,
+    )
 
 
 def make_runs_table(
@@ -30,7 +41,10 @@ def make_runs_table(
     for p in tqdm(run_paths):
         with p.open() as f:
             try:
-                run_data = yaml.unsafe_load(f)
+                # Remove slow and unsafe !!python directives (no need to load objects)
+                # content = sanitize_yaml(f.read())  # TODO
+                content = f.read()
+                run_data = yaml.unsafe_load(content)
             except yaml.constructor.ConstructorError as e:
                 warnings.warn(f"Could not load run {p}: {e}")
                 continue
@@ -59,12 +73,25 @@ def make_runs_table(
     # df.columns = pd.MultiIndex.from_arrays(
     #     zip_longest(*df.columns.str.split("."), fillvalue="")
     # )
-
     result_cols = df.columns[df.columns.str.startswith("results.")].to_list()
     df = df.dropna(subset=result_cols, axis=0, how="all")
     df = df.dropna(axis=1, how="all")
-    df = df.explode(df.columns.intersection(result_cols).to_list())
+    result_cols = df.columns.intersection(result_cols).to_list()
 
+    # Make sure all lengths match before exploding
+    # (missing folds are filled with lists of None)
+    def set_iterable_nan(col):
+        if not col.isna().any():
+            return col
+        n_folds = int(col.dropna().str.len().max())
+        new_col = col.copy()
+        # List of lists because pandas cannot set a list to each position directly.
+        new_col.loc[new_col.isna()] = [[None] * n_folds] * new_col.isna().sum()
+        return new_col
+
+    df.loc[:, result_cols] = df[result_cols].apply(set_iterable_nan)
+
+    df = df.explode(result_cols)
     df["cv.fold"] = df.groupby(level=0).cumcount()
     # drop=true because 'hash' also a column already.
     df = df.reset_index(drop=True).sort_index(axis=1)

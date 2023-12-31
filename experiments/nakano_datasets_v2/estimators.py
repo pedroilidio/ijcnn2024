@@ -5,6 +5,7 @@ from numbers import Real, Integral
 import functools
 import os
 
+import scipy.sparse
 import joblib
 import numpy as np
 import sklearn.metrics
@@ -18,6 +19,7 @@ from sklearn.base import (
 )
 from sklearn.datasets import load_iris
 from sklearn.pipeline import Pipeline, FeatureUnion
+from imblearn.pipeline import Pipeline as ImblearnPipeline
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.decomposition import PCA, SparsePCA, TruncatedSVD, NMF
 from sklearn.ensemble import (
@@ -34,6 +36,7 @@ from sklearn.model_selection import (
     KFold,
     RepeatedKFold,
     RepeatedStratifiedKFold,
+    GridSearchCV,
 )
 from sklearn.utils import check_random_state, estimator_html_repr
 from sklearn.utils.multiclass import type_of_target
@@ -47,29 +50,31 @@ from skmultilearn.dataset import load_dataset
 from skmultilearn.model_selection import IterativeStratification
 
 from deep_forest.tree_embedder import ForestEmbedder
-from deep_forest.cascade import Cascade, AlternatingLevel
-from deep_forest.weak_labels import WeakLabelImputer, PositiveUnlabeledImputer
+from deep_forest.cascade import Cascade, AlternatingLevel, SequentialLevel
+from deep_forest import weak_labels
 from deep_forest.estimator_adapters import (
     ProbaTransformer,
+    RegressorAsBinaryClassifier,
     EstimatorAsTransformer,
     MultiOutputVotingClassifier,
     MultiOutputVotingRegressor,
     TreeEmbedderWithOutput,
 )
 from nakano_datasets_v2 import scoring
+from positive_dropper import PositiveDropper
 
-
-average_precision_micro_oob_scorer = scoring.level_scorers["average_precision_micro_oob"]
 
 RSTATE = 0  # check_random_state(0)
 NJOBS = 14
-MEMORY = joblib.Memory(location="cache", verbose=10)
+# MEMORY = joblib.Memory(location="cache", verbose=10)
+MEMORY = None
 # NOTE: the paper undersamples for the whole forest, we perform undersampling
 # for each tree (NOW FIXED).
 MAX_EMBEDDING_SAMPLES = 0.5
 # Maximum fraction of samples in a tree node for it to be used in the embeddings
 MAX_NODE_SIZE = 0.95
 N_COMPONENTS = 0.8
+# N_COMPONENTS = "mle"  # Use Minka's (2000) MLE to determine the number of components
 VERBOSE = 10
 FOREST_PARAMS = dict(
     n_estimators=150,
@@ -83,12 +88,8 @@ FOREST_PARAMS = dict(
 CASCADE_PARAMS = dict(
     max_levels=10,
     verbose=VERBOSE,
-    random_state=RSTATE,
     memory=MEMORY,
-    # scoring="mean_squared_error",
-    scoring=average_precision_micro_oob_scorer,
-    validation_size="train",
-    trim_to_best_score=True,
+    keep_original_features=True,
 )
 
 for var in [
@@ -109,15 +110,14 @@ def make_iterative_stratification(**kwargs):
     return IterativeStratification(**kwargs)
 
 
-class Densifier(
-    BaseEstimator,
-    TransformerMixin,
-):
+class Densifier(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         return self
     
     def transform(self, X):
-        return X.toarray()
+        if scipy.sparse.issparse(X):
+            return X.toarray()
+        return X
 
 
 class UndersampledTransformer(
@@ -192,27 +192,29 @@ xt_embedder = (#UndersampledTransformer(
 )
 
 
-final_estimator = MultiOutputVotingClassifier(
-    estimators=[
-        (
-            "rf",
-            RandomForestClassifier(
-                **FOREST_PARAMS,
-                oob_score=True,
-                max_samples=0.9,
-                bootstrap=True,  # Default for RF
+final_estimator = RegressorAsBinaryClassifier(
+    MultiOutputVotingRegressor(
+        estimators=[
+            (
+                "rf",
+                RandomForestRegressor(
+                    **FOREST_PARAMS,
+                    oob_score=True,
+                    max_samples=0.5,
+                    bootstrap=True,  # Default for RF
+                ),
             ),
-        ),
-        (
-            "xt",
-            ExtraTreesClassifier(
-                **FOREST_PARAMS,
-                oob_score=True,
-                max_samples=0.9,
-                bootstrap=True,
+            (
+                "xt",
+                ExtraTreesRegressor(
+                    **FOREST_PARAMS,
+                    oob_score=True,
+                    max_samples=0.5,
+                    bootstrap=True,
+                ),
             ),
-        ),
-    ],
+        ],
+    )
 )
 
 
@@ -300,20 +302,44 @@ alternating_level_embedding_proba = AlternatingLevel([
     ),
 ])
 
-weak_label_imputer = PositiveUnlabeledImputer(
-    ExtraTreesClassifier(  # TODO: use regressor
-        **FOREST_PARAMS,
-        bootstrap=True,
-        max_samples=0.9,
-        oob_score=True,
-        # This favors positives too much when weight_proba=True
-        #   class_weight="balanced",  
-    ),
-    # threshold=0.95,  # if max_depth=None
-    threshold=0.8,
-    use_oob_proba=True,
-    weight_proba=True,
+imputer_estimator = MultiOutputVotingRegressor(
+    estimators=[
+        (
+            "rf",
+            RandomForestRegressor(
+                **FOREST_PARAMS,
+                oob_score=True,
+                max_samples=0.5,
+                bootstrap=True,  # Default for RF
+            ),
+        ),
+        (
+            "xt",
+            ExtraTreesRegressor(
+                **FOREST_PARAMS,
+                oob_score=True,
+                max_samples=0.5,
+                bootstrap=True,
+            ),
+        ),
+    ],
+)
+
+scar_imputer = weak_labels.SCARImputer(
+    # Tolerance p-value for label frequency estimation (called "c", see TIcE
+    # from Bekker and Davis 2018) 
+    label_freq_percentile=0.5,
     verbose=True,
+    estimator=imputer_estimator,
+)
+
+lc_imputer = weak_labels.LabelComplementImputer(
+    # Tolerance p-value for label frequency estimation (called "c", see TIcE
+    # from Bekker and Davis 2018) 
+    label_freq_percentile=0.5,
+    verbose=True,
+    estimator=imputer_estimator,
+    weight_proba=False,
 )
 
 # ===========================================================================
@@ -332,11 +358,9 @@ cascade_tree_embedder = clone(Cascade(
     **CASCADE_PARAMS,
 ))
 
-cascade_tree_embedder_pvalue = clone(cascade_tree_embedder).set_params(
+cascade_tree_embedder_chi2 = clone(cascade_tree_embedder).set_params(
     level__rf_embedder__rf__max_pvalue=0.05,
     level__xt_embedder__xt__max_pvalue=0.05,
-    # level__rf_embedder__rf__estimator__max_pvalue=0.05,
-    # level__xt_embedder__xt__estimator__max_pvalue=0.05,
 )
 
 cascade_tree_embedder_proba = clone(Cascade(
@@ -345,45 +369,87 @@ cascade_tree_embedder_proba = clone(Cascade(
     **CASCADE_PARAMS,
 ))
 
-cascade_weak_label_proba = clone(Cascade(
-    level=alternating_level_proba,
+cascade_lc_proba = clone(Cascade(
+    level=SequentialLevel([
+        ("alternating_forests", alternating_level_proba),
+        ("label_imputer", lc_imputer),
+    ]),
     final_estimator=final_estimator,
-    inter_level_sampler=weak_label_imputer,
     **CASCADE_PARAMS,
 ))
 
-cascade_weak_label_tree_embedder = clone(Cascade(
-    level=alternating_level_embedding,
+cascade_lc_tree_embedder = clone(Cascade(
+    level=SequentialLevel([
+        ("alternating_forests", alternating_level_embedding),
+        ("label_imputer", lc_imputer),
+    ]),
     final_estimator=final_estimator,
-    inter_level_sampler=weak_label_imputer,
     **CASCADE_PARAMS,
 ))
 
-cascade_weak_label_tree_embedder_proba = clone(Cascade(
-    level=alternating_level_embedding_proba,
+cascade_lc_tree_embedder_proba = clone(Cascade(
+    level=SequentialLevel([
+        ("alternating_forests", alternating_level_embedding_proba),
+        ("label_imputer", lc_imputer),
+    ]),
     final_estimator=final_estimator,
-    inter_level_sampler=weak_label_imputer,
     **CASCADE_PARAMS,
 ))
 
-cascade_weak_label_tree_embedder_pvalue = clone(
-    cascade_weak_label_tree_embedder,
+cascade_lc_tree_embedder_chi2 = clone(
+    cascade_lc_tree_embedder,
 ).set_params(
-    level__rf_embedder__rf__max_pvalue=0.05,
-    level__xt_embedder__xt__max_pvalue=0.05,
-    # level__rf_embedder__rf__estimator__max_pvalue=0.05,
-    # level__xt_embedder__xt__estimator__max_pvalue=0.05,
+    level__alternating_forests__rf_embedder__rf__max_pvalue=0.05,
+    level__alternating_forests__xt_embedder__xt__max_pvalue=0.05,
+)
+
+cascade_scar_proba = clone(Cascade(
+    level=SequentialLevel([
+        ("alternating_forests", alternating_level_proba),
+        ("label_imputer", scar_imputer),
+    ]),
+    final_estimator=final_estimator,
+    **CASCADE_PARAMS,
+))
+
+cascade_scar_tree_embedder = clone(Cascade(
+    level=SequentialLevel([
+        ("alternating_forests", alternating_level_embedding),
+        ("label_imputer", scar_imputer),
+    ]),
+    final_estimator=final_estimator,
+    **CASCADE_PARAMS,
+))
+
+cascade_scar_tree_embedder_proba = clone(Cascade(
+    level=SequentialLevel([
+        ("alternating_forests", alternating_level_embedding_proba),
+        ("label_imputer", scar_imputer),
+    ]),
+    final_estimator=final_estimator,
+    **CASCADE_PARAMS,
+))
+
+cascade_scar_tree_embedder_chi2 = clone(
+    cascade_scar_tree_embedder,
+).set_params(
+    level__alternating_forests__rf_embedder__rf__max_pvalue=0.05,
+    level__alternating_forests__xt_embedder__xt__max_pvalue=0.05,
 )
 
 estimators_dict = {
     "cascade_proba": cascade_proba,
     "cascade_tree_embedder": cascade_tree_embedder,
-    "cascade_tree_embedder_pvalue": cascade_tree_embedder_pvalue,
+    "cascade_tree_embedder_chi2": cascade_tree_embedder_chi2,
     "cascade_tree_embedder_proba": cascade_tree_embedder_proba,
-    "cascade_weak_label_proba": cascade_weak_label_proba,
-    "cascade_weak_label_tree_embedder": cascade_weak_label_tree_embedder,
-    "cascade_weak_label_tree_embedder_proba": cascade_weak_label_tree_embedder,
-    "cascade_weak_label_tree_embedder_pvalue": cascade_weak_label_tree_embedder_pvalue,
+    "cascade_lc_proba": cascade_lc_proba,
+    "cascade_lc_tree_embedder": cascade_lc_tree_embedder,
+    "cascade_lc_tree_embedder_proba": cascade_lc_tree_embedder,
+    "cascade_lc_tree_embedder_chi2": cascade_lc_tree_embedder_chi2,
+    "cascade_scar_proba": cascade_scar_proba,
+    "cascade_scar_tree_embedder": cascade_scar_tree_embedder,
+    "cascade_scar_tree_embedder_proba": cascade_scar_tree_embedder,
+    "cascade_scar_tree_embedder_chi2": cascade_scar_tree_embedder_chi2,
 }
 
 if __name__ == "__main__":
@@ -392,18 +458,47 @@ if __name__ == "__main__":
     # X, y = load_iris(return_X_y=True)
     # X, y, _, _ = load_dataset("yeast", "undivided")
     X, y = X.toarray(), y.toarray()
+    y = np.atleast_2d(y)
     # y[:, 0] = 0  # Simulate missing label
     # breakpoint()
-    # cascade = clone(cascade_tree_embedder).set_params(max_levels=2)
-    cascade = clone(final_estimator)
+    # cascade = clone(cascade_scar_tree_embedder_proba).set_params(
+    cascade = clone(cascade_lc_tree_embedder_proba).set_params(
+        max_levels=3,
+        memory=None,
+    )
+    cascade.set_params(**{
+        k: 1 for k, v in cascade.get_params().items()
+        if k.endswith("n_jobs")
+    })
+
+    cascade = ImblearnPipeline([
+        ("dropper", PositiveDropper(0.25)),
+        ("cascade", cascade),
+    ])
+    # cascade = clone(final_estimator)
     # cascade = positive_dropper.wrap_estimator(
     #     cascade_weak_label_proba,
     #     drop=0.25,
     #     random_state=RSTATE,
     # )
     cascade = cascade.fit(X, y)
-    for scoring_name, scorer in scoring.scoring_metrics.items():
-        print(scoring_name, sklearn.metrics.check_scoring(cascade, scorer)(cascade, X, y))
+
+    # scorers = scoring.level_scorers.keys()  # All scorers.
+    scorers = [
+        "label_ranking_average_precision_score",
+        "average_precision_micro",
+        "tp_micro_oob",
+        "tp_micro",
+        "tp_micro_masked",
+        "precision_micro",
+        "precision_micro_masked",
+        "precision_macro_masked",
+        "precision_weighted_masked",
+        "precision_samples_masked",
+    ]
+    for scorer_name in scorers:
+        scorer = scoring.all_scorers[scorer_name]
+        print(scorer_name, sklearn.metrics.check_scoring(cascade, scorer)(cascade, X, y))
 
     joblib.dump(cascade, "cascade.joblib")
     with open("cascade.html", "w") as f:

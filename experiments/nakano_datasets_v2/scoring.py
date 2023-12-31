@@ -1,6 +1,7 @@
 """Employ tree embeddings and weak-label inputting in deep forest models.
 """
 import copy
+from warnings import warn
 
 import numpy as np
 import sklearn.metrics
@@ -14,7 +15,6 @@ from sklearn.base import (
     is_classifier,
 )
 from sklearn.datasets import load_iris
-from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.decomposition import PCA, SparsePCA, TruncatedSVD, NMF
 from sklearn.ensemble import (
@@ -40,9 +40,12 @@ from sklearn.utils._param_validation import (
     StrOptions,
     validate_params,
 )
-from sklearn.metrics import get_scorer
+from sklearn.metrics import get_scorer, make_scorer
 from sklearn.metrics._scorer import _BaseScorer
 from sklearn.utils.validation import _check_response_method
+from sklearn.pipeline import Pipeline
+
+from positive_dropper import PositiveDropper
 
 
 def get_oob_proba(estimator, X=None, pos_label=1):
@@ -69,6 +72,30 @@ def get_oob_proba(estimator, X=None, pos_label=1):
 
 def get_oob_predictions(estimator, X=None, pos_label=1):
     return (get_oob_proba(estimator, X, pos_label) > 0.5).astype(int)
+
+
+def tp(y_true, y_pred, **kwargs):
+    return sklearn.metrics.confusion_matrix(
+        y_true, y_pred, normalize="all", **kwargs,
+    )[1, 1]
+
+
+def tn(y_true, y_pred, **kwargs):
+    return sklearn.metrics.confusion_matrix(
+        y_true, y_pred, normalize="all", **kwargs,
+    )[0, 0]
+
+
+def fp(y_true, y_pred, **kwargs):
+    return sklearn.metrics.confusion_matrix(
+        y_true, y_pred, normalize="all", **kwargs,
+    )[0, 1]
+
+
+def fn(y_true, y_pred, **kwargs):
+    return sklearn.metrics.confusion_matrix(
+        y_true, y_pred, normalize="all", **kwargs,
+    )[1, 0]
 
 
 class MultiLabelScorer(_BaseScorer):
@@ -109,9 +136,11 @@ class MultiLabelScorer(_BaseScorer):
         response_method="predict",
         average="micro",
     ):
+        kwargs = kwargs or {}
+
         if isinstance(score_func, _BaseScorer):
             sign = score_func._sign
-            kwargs = score_func._kwargs
+            kwargs |= score_func._kwargs
             response_method = score_func._response_method
     
             if isinstance(score_func, MultiLabelScorer):
@@ -119,10 +148,14 @@ class MultiLabelScorer(_BaseScorer):
 
             score_func = score_func._score_func
 
-        kwargs = kwargs or {}
         self._average = average
 
-        super().__init__(score_func, sign, kwargs, response_method)
+        super().__init__(
+            score_func=score_func,
+            sign=sign,
+            kwargs=kwargs,
+            response_method=response_method,
+        )
     
     def _score(self, method_caller, estimator, X, y_true, **kwargs):
         self._warn_overlap(
@@ -148,11 +181,16 @@ class MultiLabelScorer(_BaseScorer):
         return self._sign * self._reshaped_score_func(y_true, y_pred, **scoring_kwargs)
 
     def _reshaped_score_func(self, y_true, y_pred, **scoring_kwargs):
+        if y_true.ndim == 1:
+            y_true = y_true.reshape(-1, 1)
+        if y_pred.ndim == 1:
+            y_pred = y_pred.reshape(-1, 1)
+
         if self._average is None:
             return self._score_func(y_true, y_pred, **scoring_kwargs)
         elif self._average == "micro":
             return self._score_func(
-                y_true.reshape(-1), y_pred.reshape(-1), **scoring_kwargs,
+                y_true.reshape(-1, 1), y_pred.reshape(-1, 1), **scoring_kwargs,
             )
         elif self._average in ("macro", "weighted"):
             y_true = y_true.T
@@ -160,16 +198,22 @@ class MultiLabelScorer(_BaseScorer):
         elif self._average != "samples":
             raise ValueError
 
-        scores = np.array([
-            self._score_func(col_true, col_pred, **scoring_kwargs)
-            for col_true, col_pred in zip(y_true, y_pred)
-        ])
+        scores = np.full(len(y_true), np.nan)
+
+        for i, (col_true, col_pred) in enumerate(zip(y_true, y_pred)):
+            try:
+                scores[i] = self._score_func(col_true, col_pred, **scoring_kwargs)
+            except (IndexError, ValueError):
+                pass
+
+        if np.isnan(scores).all():
+            return np.nan
 
         if self._average == "weighted":
             weights = y_true.sum(axis=1, dtype=np.float64)
-            return np.sum(scores * weights) / weights.sum()
+            return np.nansum(scores * weights) / weights.sum()
 
-        return np.mean(scores)
+        return np.nanmean(scores)
 
 
 class OOBScorer(MultiLabelScorer):
@@ -213,138 +257,142 @@ class OOBScorer(MultiLabelScorer):
         return self._sign * self._reshaped_score_func(y_true, y_pred, **scoring_kwargs)
 
 
-scoring_metrics = {
-    "f1_macro": "f1_macro",
-    "f1_micro": "f1_micro",
-    "f1_weighted": "f1_weighted",
-    "f1_samples": "f1_samples",
-    "precision_macro": "precision_macro",
-    "precision_micro": "precision_micro",
-    "precision_weighted": "precision_weighted",
-    "precision_samples": "precision_samples",
-    "recall_macro": "recall_macro",
-    "recall_micro": "recall_micro",
-    "recall_weighted": "recall_weighted",
-    "recall_samples": "recall_samples",
-    "jaccard_macro": "jaccard_macro",
-    "jaccard_micro": "jaccard_micro",
-    "jaccard_weighted": "jaccard_weighted",
-    "jaccard_samples": "jaccard_samples",
-    "average_precision_macro": MultiLabelScorer(
-        sklearn.metrics.average_precision_score,
-        average="macro",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "average_precision_micro": MultiLabelScorer(
-        sklearn.metrics.average_precision_score,
-        average="micro",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "average_precision_weighted": MultiLabelScorer(
-        sklearn.metrics.average_precision_score,
-        average="weighted",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "average_precision_samples": MultiLabelScorer(
-        sklearn.metrics.average_precision_score,
-        average="samples",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "roc_auc_macro": MultiLabelScorer(
-        sklearn.metrics.roc_auc_score,
-        average="macro",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "roc_auc_micro": MultiLabelScorer(
-        sklearn.metrics.roc_auc_score,
-        average="micro",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "roc_auc_weighted": MultiLabelScorer(
-        sklearn.metrics.roc_auc_score,
-        average="weighted",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "roc_auc_samples": MultiLabelScorer(
-        sklearn.metrics.roc_auc_score,
-        average="samples",
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "neg_hamming_loss": MultiLabelScorer(
-        sklearn.metrics.hamming_loss,
-        response_method="predict",
-        sign=-1,
-    ),
-    "label_ranking_average_precision_score": sklearn.metrics.make_scorer(
-        sklearn.metrics.label_ranking_average_precision_score,
-        response_method=("decision_function", "predict_proba", "predict"),
-        greater_is_better=True,
-    ),
-    "neg_label_ranking_loss": sklearn.metrics.make_scorer(
-        sklearn.metrics.label_ranking_loss,
-        response_method=("decision_function", "predict_proba", "predict"),
-        greater_is_better=False,
-    ),
-    "neg_coverage_error": MultiLabelScorer(
-        sklearn.metrics.coverage_error,
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=-1,
-    ),
-    "ndgc": MultiLabelScorer(
-        sklearn.metrics.ndcg_score,
-        response_method=("decision_function", "predict_proba", "predict"),
-        sign=1,
-    ),
-    "matthews_corrcoef_micro": MultiLabelScorer(
-        sklearn.metrics.matthews_corrcoef,
-        average="micro",
-        response_method="predict",
-        sign=1,
-    ),
-    "matthews_corrcoef_macro": MultiLabelScorer(
-        sklearn.metrics.matthews_corrcoef,
-        average="macro",
-        response_method="predict",
-        sign=1,
-    ),
-    "matthews_corrcoef_weighted": MultiLabelScorer(
-        sklearn.metrics.matthews_corrcoef,
-        average="weighted",
-        response_method="predict",
-        sign=1,
-    ),
-    "matthews_corrcoef_samples": MultiLabelScorer(
-        sklearn.metrics.matthews_corrcoef,
-        average="samples",
-        response_method="predict",
-        sign=1,
-    ),
-}
+class DroppedLabelsScorer(MultiLabelScorer):
+    def _score(self, method_caller, estimator, X, y_true, **kwargs):
+        self._warn_overlap(
+            message=(
+                "There is an overlap between set kwargs of this scorer instance and"
+                " passed metadata. Please pass them either as kwargs to `make_scorer`"
+                " or metadata, but not both."
+            ),
+            kwargs=kwargs,
+        )
+
+        pos_label = None if is_regressor(estimator) else self._get_pos_label()
+
+        response_method = _check_response_method(estimator, self._response_method)
+
+        if not (
+            isinstance(estimator, Pipeline)
+            and isinstance(estimator.steps[0][1], PositiveDropper)
+        ):
+            return np.nan
+
+        dropper = estimator.steps[0][1]
+
+        if dropper.n_samples_fit_ != len(y_true):
+            warn(
+                f"{type(self).__name__} was meant to be used on training data only."
+                f" Received {dropper.n_samples_fit_=} while {len(y_true)=}."
+            )
+            return np.nan
+
+        y_pred = method_caller(
+            estimator, response_method.__name__, X, pos_label=pos_label
+        )
+
+        if isinstance(y_pred, list):  # multilabel probabilities
+            y_pred = parse_multilabel_proba(y_pred)
+
+        # Mask all positives at first
+        mask = y_true.copy().astype(bool)
+
+        # Unmask positives that were dropped
+        for i, idx in enumerate(dropper.masked_indices_):
+            mask[idx, i] = False
+
+        # Scikit-learn ignores masks, but we use them in self._reshaped_score_func
+        y_true_masked = np.ma.masked_array(y_true, mask=mask)
+        y_pred_masked = np.ma.masked_array(y_pred, mask=mask)
+
+        scoring_kwargs = {**self._kwargs, **kwargs}
+
+        return self._sign * self._reshaped_score_func(
+            y_true_masked, y_pred_masked, **scoring_kwargs,
+        )
+
+    def _reshaped_score_func(self, y_true, y_pred, **scoring_kwargs):
+        if y_true.ndim == 1 or self._average == "micro":
+            # Implied: y_pred.ndim == 1 or self._average == "micro"
+            y_true = y_true.data[~(y_true.mask)].reshape(-1, 1)
+            y_pred = y_pred.data[~(y_pred.mask)].reshape(-1, 1)
+
+        if self._average is None:
+            raise ValueError("DroppedLabelsScorer does not support average=None.")
+        elif self._average == "micro":
+            return self._score_func(y_true, y_pred, **scoring_kwargs)
+        elif self._average in ("macro", "weighted"):
+            y_true = y_true.T
+            y_pred = y_pred.T
+            if self._average == "weighted":
+                weights = y_true.sum(axis=1, dtype=np.float64).data
+        elif self._average != "samples":
+            raise ValueError
+
+        y_true_cols = [col[~mask] for col, mask in zip(y_true.data, y_true.mask)]
+        y_pred_cols = [col[~mask] for col, mask in zip(y_pred.data, y_pred.mask)]
+
+        scores = np.full(len(y_true_cols), np.nan)
+
+        for i, (col_true, col_pred) in enumerate(zip(y_true_cols, y_pred_cols)):
+            try:
+                scores[i] = self._score_func(col_true, col_pred, **scoring_kwargs)
+            except (IndexError, ValueError):
+                pass
+
+        if np.isnan(scores).all():
+            return np.nan
+
+        if self._average == "weighted":
+            return np.nansum(scores * weights) / weights.sum()
+
+        return np.nanmean(scores)
+
 
 micro_scorers = {
+    "tp": make_scorer(
+        tp,
+        greater_is_better=True,
+        response_method="predict",
+        labels=[0, 1],
+    ),
+    "tn": make_scorer(
+        tn,
+        greater_is_better=True,
+        response_method="predict",
+        labels=[0, 1],
+    ),
+    "fp": make_scorer(
+        fp,
+        greater_is_better=False,
+        response_method="predict",
+        labels=[0, 1],
+    ),
+    "fn": make_scorer(
+        fn,
+        greater_is_better=False,
+        response_method="predict",
+        labels=[0, 1],
+    ),
     "f1": MultiLabelScorer(
         get_scorer("f1_micro"),
         average="micro",
+        kwargs=dict(labels=[0, 1]),
     ),
     "precision": MultiLabelScorer(
         get_scorer("precision_micro"),
         average="micro",
+        kwargs=dict(labels=[0, 1]),
     ),
     "recall": MultiLabelScorer(
         get_scorer("recall_micro"),
         average="micro",
+        kwargs=dict(labels=[0, 1]),
     ),
     "jaccard": MultiLabelScorer(
         get_scorer("jaccard_micro"),
         average="micro",
+        kwargs=dict(labels=[0, 1]),
     ),
     "matthews_corrcoef": MultiLabelScorer(
         sklearn.metrics.matthews_corrcoef,
@@ -363,6 +411,7 @@ micro_scorers = {
         response_method=("decision_function", "predict_proba", "predict"),
         sign=1,
         average="micro",
+        kwargs=dict(labels=[0, 1]),
     ),
     "neg_hamming_loss": MultiLabelScorer(
         sklearn.metrics.hamming_loss,
@@ -388,7 +437,7 @@ micro_scorers = {
         average=None,
         sign=-1,
     ),
-    "ndgc": MultiLabelScorer(
+    "ndcg": MultiLabelScorer(
         sklearn.metrics.ndcg_score,
         response_method=("decision_function", "predict_proba", "predict"),
         average=None,
@@ -396,23 +445,33 @@ micro_scorers = {
     ),
 }
 
-level_scorers = {}
+all_scorers = {}
+oob_scorers = {}
+masked_scorers = {}
+
 for metric, scorer in micro_scorers.items():
     for average in (
         ("micro", "macro", "weighted", "samples")
-        if scorer._average == "micro" else (None,)
+        if getattr(scorer, "_average", "micro") == "micro" else (None,)
     ):
         # Set version of scorer with corresponding average
-        new_scorer = copy.deepcopy(scorer)
+        new_scorer = MultiLabelScorer(copy.deepcopy(scorer))
         new_scorer._average = average
         scorer_name = metric
         if average is not None:
             scorer_name += "_" + average
 
-        level_scorers[scorer_name] = new_scorer
+        all_scorers[scorer_name] = new_scorer
 
         # Set out-of-bag version of scorer (will only work on training data)
-        level_scorers[scorer_name + "_oob"] = OOBScorer(new_scorer)
+        oob_scorers[scorer_name] = OOBScorer(new_scorer)
+        if average is not None:
+            # Set dropped labels version of scorer (will only work on training data)
+            masked_scorers[scorer_name] = DroppedLabelsScorer(new_scorer)
+
+
+all_scorers |= {k + "_oob": v for k, v in oob_scorers.items()}
+all_scorers |= {k + "_masked": v for k, v in masked_scorers.items()}
 
 
 def parse_multilabel_proba(y):
