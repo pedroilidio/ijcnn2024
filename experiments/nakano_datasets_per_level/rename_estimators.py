@@ -54,7 +54,7 @@ def rename_estimators(input_path: Path):
 
     results.columns = pd.MultiIndex.from_arrays(
         (results.columns, level[~level.isna()].astype(int)),
-        names=("metric", "level"),
+        names=("scorer", "level"),
     )
     results = results.stack("level")
     results = results.reset_index()
@@ -70,6 +70,7 @@ def rename_estimators(input_path: Path):
         )
     
     score_columns_mask = results.columns.str.match(r"results\.(test|train).*")
+    # oob_internal_scores = results.columns.str.endswith("_oob_internal")
 
     best_level_results = (
         results
@@ -89,37 +90,86 @@ def rename_estimators(input_path: Path):
                 .str.removeprefix("test_")
                 .str.removesuffix("_oob")
                 .str.removesuffix("_masked")
+                .str.removesuffix("_internal")
             ),
         ).apply(
             lambda g2: g2.T.sort_values(f"results.train_{g2.name}_oob").iloc[-1]
         )
 
-    expected_best_level_results = (
+    expected_best = (
         results
         .set_index(results.columns[~score_columns_mask].tolist())
-        .groupby(level=["cv.fold", "dataset.name", "estimator.name"])
+        .droplevel("level")
+        # .stack("scorer", future_stack=True)
+    )
+    expected_best = expected_best.droplevel([l for l in expected_best.index.names if l.startswith("results.")])
+
+    metric = (
+        expected_best.columns.get_level_values("scorer")
+        .str.removeprefix("results.")
+        .str.removeprefix("train_")
+        .str.removeprefix("test_")
+        .str.removesuffix("_internal")
+        .str.removesuffix("_masked")
+        .str.removesuffix("_oob")
+        .rename("metric")
+        # .to_series()
+        # .set_axis(expected_best.index)
+    )
+
+    expected_best.columns = pd.MultiIndex.from_arrays(
+        (expected_best.columns, metric),
+        names=("scorer", "metric"),
+    )
+
+    def get_expected_best(g):
+        print(g.name)
+        result = g.T.groupby(level="metric", group_keys=False).apply(
+                lambda g2: g2.T.nlargest(
+                1, ((  # TODO
+                    f"results.train_{g2.name}_oob_internal"
+                    if f"results.train_{g2.name}_oob_internal"
+                    in g2.index.get_level_values("scorer")
+                    else f"results.train_{g2.name}_oob"
+                ), g2.name),
+                keep="last",
+            ).T
+        ).T
+        assert result.shape[0] == 1
+        return result
+
+    expected_best = (
+        expected_best
+        .groupby(
+            level=["cv.fold", "dataset.name", "estimator.name"],
+            group_keys=False,
+        )
         .apply(get_expected_best)
+        #    lambda g: g.unstack("scorer").droplevel(0, axis=1).nlargest(
+        #        1, (  # TODO
+        #            f"results.train_{g.name[3]}_oob_internal"
+        #            if f"results.train_{g.name[3]}_oob_internal"
+        #            in g.index.get_level_values("scorer")
+        #            else f"results.train_{g.name[3]}_oob"
+        #        )
+        #    ).stack("scorer")
+        # )
         .reset_index()
+        .droplevel("metric", axis=1)
         .assign(level="expected_best")
     )
-    new_columns = expected_best_level_results.columns.get_level_values(1).values
-    new_columns[new_columns == ''] = (
-        expected_best_level_results.columns.get_level_values(0)[new_columns == '']
-    )
-    expected_best_level_results.columns = new_columns
-
     results['original_estimator_name'] = results['estimator.name']
     best_level_results['original_estimator_name'] = (
         best_level_results['estimator.name']
     )
-    expected_best_level_results['original_estimator_name'] = (
-        expected_best_level_results['estimator.name']
+    expected_best['original_estimator_name'] = (
+        expected_best['estimator.name']
     )
 
     best_level_results['estimator.name'] += '__best'
-    expected_best_level_results['estimator.name'] += '__expected_best'
+    expected_best['estimator.name'] += '__expected_best'
 
-    results = pd.concat([results, best_level_results, expected_best_level_results])
+    results = pd.concat([results, best_level_results, expected_best])
 
     results.to_csv(output_path, sep="\t", index=False)
     print(f"Saved to {output_path}")

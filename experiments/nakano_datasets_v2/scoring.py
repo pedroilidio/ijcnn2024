@@ -1,6 +1,7 @@
 """Employ tree embeddings and weak-label inputting in deep forest models.
 """
 import copy
+from typing import Callable
 from warnings import warn
 
 import numpy as np
@@ -349,6 +350,50 @@ class DroppedLabelsScorer(MultiLabelScorer):
         return np.nanmean(scores)
 
 
+class InternalScorer(_BaseScorer):
+    """Score based on the modified data seen by the estimator.
+
+    Labels are dropped before scoring.
+    """
+    def __init__(self, scorer: _BaseScorer) -> None:
+        self.scorer = scorer
+    
+    @property
+    def _score_func(self):
+        return self.scorer._score_func
+    
+    @property
+    def _sign(self):
+        return self.scorer._sign
+    
+    @property
+    def _kwargs(self):
+        return self.scorer._kwargs
+    
+    @property
+    def _response_method(self):
+        return self.scorer._response_method
+    
+    def _score(self, method_caller, estimator, X, y_true, **kwargs):
+        if not (
+            isinstance(estimator, Pipeline)
+            and isinstance(estimator.steps[0][1], PositiveDropper)
+        ):
+            return np.nan
+
+        dropper = clone(estimator.steps[0][1])
+
+        if not isinstance(dropper.random_state, int):
+            raise ValueError(
+                "InternalScorer only works with PositiveDropper with integer"
+                " random_state."
+            )
+
+        _, yt = dropper.fit_resample(X, y_true)
+
+        return self.scorer._score(method_caller, estimator, X, yt, **kwargs)
+
+
 micro_scorers = {
     "tp": make_scorer(
         tp,
@@ -470,7 +515,13 @@ for metric, scorer in micro_scorers.items():
             masked_scorers[scorer_name] = DroppedLabelsScorer(new_scorer)
 
 
+# Add OOB scorers
 all_scorers |= {k + "_oob": v for k, v in oob_scorers.items()}
+
+# Use train data and OOB to compute internal scores
+internal_scorers = {k: InternalScorer(v) for k, v in all_scorers.items()}
+
+all_scorers |= {k + "_internal": v for k, v in internal_scorers.items()}
 all_scorers |= {k + "_masked": v for k, v in masked_scorers.items()}
 
 

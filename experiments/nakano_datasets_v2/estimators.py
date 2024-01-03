@@ -328,7 +328,7 @@ imputer_estimator = MultiOutputVotingRegressor(
 scar_imputer = weak_labels.SCARImputer(
     # Tolerance p-value for label frequency estimation (called "c", see TIcE
     # from Bekker and Davis 2018) 
-    label_freq_percentile=0.5,
+    label_freq_percentile=0.95,
     verbose=True,
     estimator=imputer_estimator,
 )
