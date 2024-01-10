@@ -543,7 +543,7 @@ def plot_everything(
     table_lines = []
 
     # Make visualizations of pairwise estimator comparisons.
-    for dataset_name, dataset_group in df2.groupby("dataset"):
+    for dataset_name, dataset_group in df2.groupby("dataset", sort=False):
 
         # Existence is assured by make_visualizations()
         outdir = main_outdir / dataset_name

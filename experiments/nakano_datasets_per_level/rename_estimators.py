@@ -2,9 +2,25 @@
 import argparse
 from pathlib import Path
 from warnings import warn
+from time import time
 
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
+
+
+def rename_result_columns_as_initially(df):
+    metric = df.columns.get_level_values("metric")
+    scorer = df.columns.get_level_values("scorer")
+    splitted_scorer = scorer.to_series().str.split("_", n=1, expand=True)
+    train_test, suffix = splitted_scorer[0], splitted_scorer[1]
+    df.columns = (
+        "results."
+        + train_test
+        + "_"
+        + metric.astype(str)
+        + ("_" + suffix).fillna("")
+    )
 
 
 def rename_estimators(input_path: Path):
@@ -24,21 +40,6 @@ def rename_estimators(input_path: Path):
         "drop80": "__80",
         "drop90": "__90",
     }
-    estimator_renaming = {
-        # "bxt_gmo__25": "bxt_gmo",
-        # "brf_gmo__75": "brf_gmo",
-        # "adss_bxt_gso": "ss_bxt_gso__ad_fixed",
-        # "md_ss_bxt_gso": "ss_bxt_gso__md_fixed",
-        # "md_ds_bxt_gso": "ss_bxt_gso__md_size",
-        # "ss_bxt_gso": "ss_bxt_gso__mse_fixed",
-        # "rs_bxt_gso": "ss_bxt_gso__mse_random",
-        # "ds_bxt_gso": "ss_bxt_gso__mse_density",
-    }
-
-    # Rename estimators
-    # data["estimator.name"] = (
-    #     data["estimator.name"].map(estimator_renaming).fillna(data["estimator.name"])
-    # )
 
     if "wrapper.name" in data:
         # Rename estimators to include wrapper name
@@ -59,50 +60,62 @@ def rename_estimators(input_path: Path):
     results = results.stack("level")
     results = results.reset_index()
 
-    run_identifiers = ["cv.fold", "dataset.name", "estimator.name", "level"]
-    dup_idx = results.duplicated(run_identifiers)
+    run_id = ["cv.fold", "dataset.name", "estimator.name"]
+    level_run_id = ["cv.fold", "dataset.name", "estimator.name", "level"]
+
+    dup_idx = results.duplicated(level_run_id)
     
     if dup_idx.any():
-        warn(f"Removing duplicate rows: \n {results.loc[dup_idx, run_identifiers]}")
+        warn(f"Removing duplicate rows: \n {results.loc[dup_idx, level_run_id]}")
         results = results.sort_values("start").drop_duplicates(
-            run_identifiers,
+            level_run_id,
             keep="last",
         )
     
     score_columns_mask = results.columns.str.match(r"results\.(test|train).*")
-    # oob_internal_scores = results.columns.str.endswith("_oob_internal")
 
-    best_level_results = (
-        results
-        .set_index(results.columns[~score_columns_mask].tolist())
-        .groupby(level=["cv.fold", "dataset.name", "estimator.name"])
-        .max()  # Max between levels
+    # Internal scores (considering the dropped labels) are not computed when no
+    # dropper is used. We thus copy the external scores to the internal scores
+    # in these cases, since no dropping is actually performed.
+    internal_scores = results.columns[
+        results.columns.str.endswith("_internal")
+    ]
+    no_drop = results["wrapper.name"].isna()  # wrapper is the positive dropper
+
+    results.loc[no_drop, internal_scores] = results.loc[
+        no_drop,
+        internal_scores.str.removesuffix("_internal")
+    ].values  # ignore column names
+
+    best_level = (
+        results.loc[results.level != 0]  # Ignore level 0 (only the final estimator)
+        # .set_index(results.columns[~score_columns_mask].tolist())
+        .set_index(level_run_id)
+        .groupby(level=run_id)
+        .max(numeric_only=True)  # Max between levels
         .reset_index()
         .assign(level="best")
     )
 
-    def get_expected_best(g):
-        return g.T.groupby(
-            (
-                g.columns
-                .str.removeprefix("results.")
-                .str.removeprefix("train_")
-                .str.removeprefix("test_")
-                .str.removesuffix("_oob")
-                .str.removesuffix("_masked")
-                .str.removesuffix("_internal")
-            ),
-        ).apply(
-            lambda g2: g2.T.sort_values(f"results.train_{g2.name}_oob").iloc[-1]
-        )
-
     expected_best = (
-        results
+        results.loc[results.level != 0]  # Ignore level 0 (only the final estimator)
         .set_index(results.columns[~score_columns_mask].tolist())
         .droplevel("level")
         # .stack("scorer", future_stack=True)
     )
-    expected_best = expected_best.droplevel([l for l in expected_best.index.names if l.startswith("results.")])
+    # expected_best = expected_best.droplevel(
+    #     [l for l in expected_best.index.names if l.startswith("results.")]
+    # )
+    
+    # Categorical index for faster groupby iteration
+    expected_best = expected_best.droplevel(
+        [l for l in expected_best.index.names if l not in run_id]
+    )
+    expected_best = expected_best.reset_index()
+    expected_best.index = pd.MultiIndex.from_frame(
+        expected_best.loc[:, run_id].astype("category")
+    )
+    expected_best = expected_best.drop(run_id, axis=1)
 
     metric = (
         expected_best.columns.get_level_values("scorer")
@@ -117,59 +130,151 @@ def rename_estimators(input_path: Path):
         # .set_axis(expected_best.index)
     )
 
-    expected_best.columns = pd.MultiIndex.from_arrays(
-        (expected_best.columns, metric),
-        names=("scorer", "metric"),
-    )
+    old_columns = expected_best.columns
 
-    def get_expected_best(g):
-        print(g.name)
-        result = g.T.groupby(level="metric", group_keys=False).apply(
-                lambda g2: g2.T.nlargest(
-                1, ((  # TODO
-                    f"results.train_{g2.name}_oob_internal"
-                    if f"results.train_{g2.name}_oob_internal"
-                    in g2.index.get_level_values("scorer")
-                    else f"results.train_{g2.name}_oob"
-                ), g2.name),
-                keep="last",
-            ).T
-        ).T
-        assert result.shape[0] == 1
+    # Example:
+    # results.test_roc_auc_micro_oob_internal -> (roc_auc_micro, test_oob_internal)
+    cat_columns = pd.DataFrame.from_records(
+        (
+            (m, s.replace("_" + m, ""))
+            for m, s in zip(metric, old_columns.str.replace("results.", ""))
+        ),
+        columns=("metric", "scorer"),
+    ).astype("category")
+
+    expected_best.columns = pd.MultiIndex.from_frame(cat_columns)
+
+    # expected_best = expected_best.stack("metric")
+    expected_best = expected_best.sort_index(axis=1).sort_index(axis=0)
+
+    def get_expected_best(g, col):
+        # result = (
+        #     g.T.groupby(level="metric", group_keys=False, sort=False, observed=False)
+        #     .apply(lambda g2: g2.droplevel("metric").T.nlargest(1, col).T)
+        #     # .apply(lambda g2: g2.T.nlargest(1, (g2.name, col)).T)
+        # ).T
+        result = (
+            g.stack("metric")
+            .groupby(level="metric", group_keys=False, sort=False, observed=False)
+            .apply(lambda g2: g2.nlargest(1, col))
+            .unstack("metric")
+            #.reorder_levels(["metric", "scorer"], axis=1)
+        )
+        # assert result.shape[0] == 1
         return result
 
-    expected_best = (
-        expected_best
-        .groupby(
-            level=["cv.fold", "dataset.name", "estimator.name"],
-            group_keys=False,
+    # Appending groups like so is slow:
+    # expected_best = (
+    #     # expected_best.sort_index(level=["cv.fold", "dataset.name", "estimator.name"])
+    #     expected_best.sort_index()
+    #     .groupby(
+    #         level=["cv.fold", "dataset.name", "estimator.name"],
+    #         group_keys=False,
+    #         sort=False,
+    #     )
+    #     .apply(get_expected_best)
+    #     .set_axis(old_columns, axis=1)
+    #     .reset_index()
+    #     # .droplevel("metric", axis=1)
+    #     .assign(level="expected_best")
+    # )
+    
+    print("Selecting internal best level...")
+    grouped = expected_best.groupby(
+        level=run_id,  # + ["metric"],  # If metric was stacked
+        group_keys=False,
+        sort=False,
+        observed=False,
+    )
+    groups_oob = []
+    groups_train = []
+
+    for _, group in tqdm(grouped, total=grouped.ngroups):
+        groups_oob.append(get_expected_best(group, "train_oob_internal"))
+        groups_train.append(get_expected_best(group, "train_internal"))
+        # Stack per group is faster than:
+        # groups_oob.append(group.nlargest(1, "train_oob_internal"))
+        # groups_train.append(group.nlargest(1, "train_internal"))
+
+    print("Concatenating groups with best OOB scores...")
+    best_oob = pd.concat(groups_oob)#, ignore_index=True)
+    # best_oob = best_oob.stack("metric") #
+    rename_result_columns_as_initially(best_oob)
+    best_oob = best_oob.reset_index().assign(level="best_oob")
+    
+    print("Concatenating groups with best training scores...")
+    best_train = pd.concat(groups_train)#, ignore_index=True)
+    # best_train = best_train.stack("metric") #
+    rename_result_columns_as_initially(best_train)
+    best_train = best_train.reset_index().assign(level="best_train")
+
+    results["original_estimator_name"] = results["estimator.name"]
+    results["estimator.name"] += "__level" + results["level"].astype(str)
+
+    # Assert that best level scores are higher than expected best scores
+    # TODO: should not be necessary.
+    wrong_bo = (
+        best_oob.set_index(run_id)
+        > best_level.set_index(run_id).loc[:, best_oob.columns]
+    )
+    if wrong_bo.any().any():
+        warn(
+            f"Level with best OOB scores are better than best level for"
+            f" {wrong_bo.sum().sum()} runs:"
+            f"\n{best_oob.loc[wrong_bo.any(axis=1), run_id]}"
         )
-        .apply(get_expected_best)
-        #    lambda g: g.unstack("scorer").droplevel(0, axis=1).nlargest(
-        #        1, (  # TODO
-        #            f"results.train_{g.name[3]}_oob_internal"
-        #            if f"results.train_{g.name[3]}_oob_internal"
-        #            in g.index.get_level_values("scorer")
-        #            else f"results.train_{g.name[3]}_oob"
-        #        )
-        #    ).stack("scorer")
-        # )
-        .reset_index()
-        .droplevel("metric", axis=1)
-        .assign(level="expected_best")
+
+    wrong_bt = (
+        best_train.set_index(run_id)
+        > best_level.set_index(run_id).loc[:, best_train.columns]
     )
-    results['original_estimator_name'] = results['estimator.name']
-    best_level_results['original_estimator_name'] = (
-        best_level_results['estimator.name']
+    if wrong_bt.any().any():
+        warn(
+            f"Level with best training scores are better than best level for"
+            f" {wrong_bt.sum().sum()} runs:"
+            f"\n{best_train.loc[wrong_bt.any(axis=1), run_id]}"
+        )
+
+    # Add suffixes to distinguish the best level, best OOB and best training
+    # as different estimators
+    best_level["original_estimator_name"] = best_level["estimator.name"]
+    best_oob["original_estimator_name"] = best_oob["estimator.name"]
+    best_train["original_estimator_name"] = best_train["estimator.name"]
+
+    # best_level["estimator.name"] += "__best"
+    # best_oob["estimator.name"] += "__best_oob"
+    # best_train["estimator.name"] += "__best_train"
+
+    # If one intends to keep categories, use:
+    #     best_level["estimator.name"].cat.rename_categories(
+    #         lambda x: x + "__best"
+    #     )
+    best_level["estimator.name"] = (
+        best_level["estimator.name"].astype(str) + "__best"
     )
-    expected_best['original_estimator_name'] = (
-        expected_best['estimator.name']
+    best_oob["estimator.name"] = (
+        best_oob["estimator.name"].astype(str) + "__best_oob"
+    )
+    best_train["estimator.name"] = (
+        best_train["estimator.name"].astype(str) + "__best_train"
     )
 
-    best_level_results['estimator.name'] += '__best'
-    expected_best['estimator.name'] += '__expected_best'
+    results = pd.concat(
+        [results, best_level, best_oob, best_train],
+        ignore_index=True,
+    )
 
-    results = pd.concat([results, best_level_results, expected_best])
+    # Final abbreviations
+    results["estimator.name"] = (
+        results["estimator.name"]
+        .str.replace("level", "")
+        .str.replace("best_oob", "bo")
+        .str.replace("best_train", "bt")
+        .str.replace("best", "b")
+        .str.replace("cascade_", "")
+        .str.replace("tree_embedder", "te")
+        .str.replace("proba", "os")
+    )
 
     results.to_csv(output_path, sep="\t", index=False)
     print(f"Saved to {output_path}")
