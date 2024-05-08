@@ -8,3 +8,4 @@ python make_runs_table.py \
     --runs $BASEDIR/runs
 
 python $BASEDIR/rename_estimators.py $BASEDIR/results.tsv
+python $BASEDIR/final_rename.py $BASEDIR/results_renamed.tsv -o $BASEDIR/results_renamed_final.tsv

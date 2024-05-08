@@ -20,6 +20,7 @@ defaults:
         return_fitted_params:
         - n_components_
         - label_frequency_estimates_
+        - enable_imputation_
         return_train_score: true
         scoring:
           !!python/name:nakano_datasets_v2.scoring.all_scorers ''
@@ -104,6 +105,11 @@ aliases:
 
 
   estimator:
+  - name: cascade_wang
+    call: nakano_datasets_v2.estimators.cascade_wang
+  - name: cascade_zhou
+    call: nakano_datasets_v2.estimators.cascade_zhou
+
   - name: cascade_proba
     call: nakano_datasets_v2.estimators.cascade_proba
   - name: cascade_tree_embedder
@@ -178,28 +184,31 @@ aliases:
 runs:
   # TEST
   - wrapper:
-      - null
-    dataset: VirusPseAAC
+      - drop50
+    dataset: PlantGO
     estimator:
-    # - cascade_scar_tree_embedder_proba
-    - cascade_lc_tree_embedder
+    - cascade_zhou
     active: false
     cv:
       params:
         n_jobs: 1
         error_score: raise
 
+  - wrapper: null
+    dataset: flags
+    estimator: cascade_wang
+    active: true
 
   - wrapper:
-    - null
-    # - drop20
-    # - drop30
-    # - drop40
+    - drop30
     - drop50
-    # - drop60
     - drop70
-    # - drop80
-    - drop90
+    - null
+    # # - drop20
+    # # - drop40
+    # # - drop60
+    # # - drop80
+    # - drop90
     dataset:              # n_samples  n_features  n_labels   y_size
     - VirusGO             #     207         749         6     1242
     - VirusPseAAC         #     207         440         6     1242
@@ -212,29 +221,62 @@ runs:
     - PlantGO             #     978        3091        12    11736
     - birds               #     645         260        19    12255
     - scene               #    2407         294         6    14442
-    - genbase             #     662        1185        27    17874
+    # - genbase             #     662        1185        27    17874
+    - yeast               #    2417         103        14    33838
+    - medical             #     978        1449        45    44010
+    # - CAL500              #     502          68       174    87348
+    - enron               #    1702        1001        53    90206  # too many labels for tice
+    # - LLOG                #    1460          75      1004  1465840  # too many labels for tice
+    estimator:
+    - cascade_wang
+    # - cascade_proba
+    # - cascade_tree_embedder
+    # - cascade_tree_embedder_proba
+    # # - cascade_tree_embedder_chi2
+
+    # - cascade_lc_tree_embedder
+    # - cascade_lc_tree_embedder_proba
+    # - cascade_lc_proba
+    # # - cascade_lc_tree_embedder_chi2
+
+    # # - cascade_scar_tree_embedder
+    # - cascade_scar_proba
+    # - cascade_scar_tree_embedder_proba
+    # # - cascade_scar_tree_embedder_chi2
+    active: false
+
+  - wrapper:
+    - drop30
+    - drop50
+    - drop70
+    - null
+    # # - drop20
+    # # - drop40
+    # # - drop60
+    # # - drop80
+    # - drop90
+    dataset:              # n_samples  n_features  n_labels   y_size
+    - VirusGO             #     207         749         6     1242
+    - VirusPseAAC         #     207         440         6     1242
+    - flags               #     194          19         7     1358
+    - Gram_positive       #     519         912         4     2076
+    - GrampositivePseAAC  #     519         440         4     2076
+    - CHD_49              #     555          49         6     3330
+    - emotions            #     593          72         6     3558
+    - Gram_negative       #    1392        1717         8    11136
+    - PlantGO             #     978        3091        12    11736
+    - birds               #     645         260        19    12255
+    - scene               #    2407         294         6    14442
+    # - genbase             #     662        1185        27    17874
     - yeast               #    2417         103        14    33838
     - medical             #     978        1449        45    44010
     - CAL500              #     502          68       174    87348
     - enron               #    1702        1001        53    90206
     - LLOG                #    1460          75      1004  1465840
     estimator:
-    - cascade_proba
-    - cascade_tree_embedder
-    - cascade_tree_embedder_proba
-    # - cascade_tree_embedder_chi2
-
-    - cascade_lc_tree_embedder
-    - cascade_lc_tree_embedder_proba
-    - cascade_lc_proba
-    # - cascade_lc_tree_embedder_chi2
-
-    # - cascade_scar_proba
-    # - cascade_scar_tree_embedder_proba
-    # - cascade_scar_tree_embedder
-    # - cascade_scar_tree_embedder_chi2
-    active: true
-
+    - cascade_zhou
+    active: false
+ 
   # Run again.
   - wrapper:
     - null
@@ -279,4 +321,4 @@ runs:
     - cascade_scar_tree_embedder
     - cascade_scar_tree_embedder_proba
     - cascade_scar_tree_embedder_chi2
-    active: true
+    active: false

@@ -278,6 +278,7 @@ class SCARImputer(WeakLabelImputer):
         label_freq_percentile=0.5,
         threshold=0.5,
         verbose=False,
+        use_oob_proba=True,
         last_level: Self | None = None,
     ):
         """Impute missing labels under the SCAR assumption.
@@ -295,10 +296,10 @@ class SCARImputer(WeakLabelImputer):
             verbose=verbose,
             weight_proba=True,  # Does not make sense otherwise
             sampling_strategy="auto",
-            use_oob_proba=True,  # TODO: unfix?
+            use_oob_proba=use_oob_proba,
         )
 
-    def _estimate_label_frequencies(self, y_original, proba):
+    def _estimate_label_frequencies(self, y_original, proba, X=None, y=None):
         label_frequency_estimates = []
 
         for y_col, proba_col in zip(y_original.T, proba):
@@ -368,7 +369,7 @@ class SCARImputer(WeakLabelImputer):
             self.label_frequency_estimates_[self.enable_imputation_]
         ):
             proba_col = proba_col.copy()
-            proba_col[:, 1] /= label_freq
+            proba_col[:, 1] = (proba_col[:, 1] / label_freq).clip(0, 1)
             proba_col[:, 0] = 1 - proba_col[:, 1]
             new_probas.append(proba_col)
 
@@ -402,6 +403,8 @@ class SCARImputer(WeakLabelImputer):
             self._estimate_label_frequencies(
                 self.original_y_[:, self.enable_imputation_],
                 proba,
+                X=X,
+                y=active_y,
             )
         )
         return estimator, proba
@@ -455,6 +458,7 @@ class LabelComplementImputer(SCARImputer):
         threshold=0.5,
         weight_proba=False,
         verbose=False,
+        use_oob_proba=True,
         last_level: Self | None = None,
     ):
         """Impute missing labels under the SCAR assumption.
@@ -467,8 +471,9 @@ class LabelComplementImputer(SCARImputer):
             estimator=estimator,
             threshold=threshold,
             verbose=verbose,
-            last_level = last_level,
-            label_freq_percentile = label_freq_percentile,
+            last_level=last_level,
+            label_freq_percentile=label_freq_percentile,
+            use_oob_proba=use_oob_proba,
         )
 
     def _fit_predict_proba(self, X, y, **params):
@@ -496,6 +501,7 @@ class LabelComplementImputer(SCARImputer):
 
     def _apply_threshold(self, proba, threshold):
         keep_masks = []
+        n_samples = proba[0].shape[0]
 
         for i, proba_col, y_col, label_freq in zip(
             np.nonzero(self.enable_imputation_)[0],
@@ -506,31 +512,42 @@ class LabelComplementImputer(SCARImputer):
             keep_mask = np.ones_like(y_col, dtype=bool)
             proba_col = proba_col[:, 1]
 
-            # Change at most max_labels labels
-            max_labels = int(np.sum(y_col) / label_freq)
+            # Change at most max_labels labels. We use n_samples as max to avoid
+            # integer overflow (if label_freq is 0 or too small).
+            max_labels = int(min(np.sum(y_col) / label_freq, n_samples))
 
-            if max_labels > len(y_col):
-                warn(f"Excessive imputaion: {max_labels=} > {len(y_col)}")
+            if max_labels == n_samples:
+                warn(
+                    "Expected number of labels is too large:"
+                    f" {np.sum(y_col) / label_freq=} > {n_samples=}"
+                )
 
-            change_idx = np.argsort(proba_col + y_col)[::-1][:max_labels]
+            # Change labels with highest probability of being positive.
+            # We add 2 * y_col to the probabilities to include the original positives
+            # in the "total number of labels" that must not exceed max_labels.
+            # [::-1][:max_labels] is used instead of [-max_labels:] to avoid
+            # the case where max_labels=0.
+            change_idx = np.argsort(proba_col + 2 * y_col)[::-1][:max_labels]
             keep_mask[change_idx] = False
 
-            # Filter out predictions with low confidence or negative
+            # Filter out predictions with low confidence or negative.
             keep_mask |= proba_col < threshold
 
-            # Using y_col in case original positives were filtered out
+            # Using y_col to avoid original positives to be filtered out.
+            # (TODO: which should never happen, the following should be enough).
+            #     n_labeled = (~keep_mask).sum()
             n_labeled = ((~keep_mask) | y_col.astype(bool)).sum()
 
-            if n_labeled == max_labels:
+            if n_labeled >= max_labels:
                 # Signal to the next level to stop imputing for this output
                 self.next_enable_imputation_[i] = False
                 self.print_message(f"Stopped imputation for output {i}.")
-            elif n_labeled > max_labels:
+            if n_labeled > max_labels:
                 warn(
                     f"Imputed more labels than expected: {n_labeled=} > {max_labels=}"
                 )
 
-            # Keep original positives
+            # Keep original positives, since change_idx marked them to be changed.
             keep_mask |= y_col.astype(bool)
 
             keep_masks.append(keep_mask)

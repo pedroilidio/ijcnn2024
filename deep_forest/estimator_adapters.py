@@ -8,6 +8,8 @@ from sklearn.base import (
     clone,
     _fit_context,
 )
+from sklearn import metrics
+from sklearn.model_selection import check_cv
 from sklearn.utils.metaestimators import _BaseComposition
 from sklearn.utils._param_validation import HasMethods, StrOptions
 from imblearn.base import BaseSampler
@@ -71,11 +73,11 @@ class MultiOutputVotingRegressor(_BaseComposition, RegressorMixin):
     def __init__(self, estimators):
         self.estimators = estimators
 
-    def get_params(self, deep=True):
-        return self._get_params("estimators", deep=deep)
+    # def get_params(self, deep=True):
+    #     return self._get_params("estimators", deep=deep)
 
-    def set_params(self, **params):
-        return self._set_params("estimators", **params)
+    # def set_params(self, **params):
+    #     return self._set_params("estimators", **params)
 
     def fit(self, X, y, **params):
         self.estimators_ = [
@@ -174,6 +176,177 @@ class MultiOutputVotingClassifier(_BaseComposition, ClassifierMixin):
 
     def _more_tags(self):
         return {"multioutput": True}
+
+
+class UnanimityClassifier(MultiOutputVotingClassifier):
+    def __init__(self, estimators, threshold=0.5):
+        self.estimators = estimators
+        self.threshold = threshold
+
+    def predict_proba(self, X, **params):
+        probas = [
+            estimator.predict_proba(X, **params)
+            for estimator in self.estimators_
+        ]
+
+        if isinstance(probas[0], list):  # multilabel-indicator
+            new_probas = []
+            for label_probas in zip(*probas):
+                new_probas.append(np.prod(label_probas, axis=0))  # FIXME: threshold
+            return new_probas
+
+        return np.prod(probas, axis=0)
+
+    def predict(self, X, **params):
+        probas = [
+            estimator.predict_proba(X, **params)
+            for estimator in self.estimators_
+        ]
+
+        if self.n_outputs_ == 1:
+            return np.all(
+                [proba[:, 1] >= self.threshold for proba in probas],
+                axis=0,
+            ).astype(int)
+        
+        pred = []
+        for output_probas in zip(*probas):
+            pred.append(
+                np.all(
+                    [proba[:, 1] >= self.threshold for proba in output_probas],
+                    axis=0,
+                ).astype(int)
+            )
+        return np.vstack(pred).T
+
+    @property
+    def oob_decision_function_(self):
+        probas = [
+            estimator.oob_decision_function_
+            for estimator in self.estimators_
+        ]
+        return np.prod(probas, axis=0)
+
+
+class CVClassifier(MultiOutputVotingClassifier):
+    def __init__(self, estimator, cv=None, groups=None, oob_score=False):
+        self.estimator = estimator
+        self.cv = cv
+        self.groups = groups
+        self.oob_score = oob_score
+
+    def get_params(self, deep=True):
+        return self._get_params("estimator", deep=deep)
+
+    def set_params(self, **params):
+        return self._set_params("estimator", **params)
+
+    #   @property
+    #   def estimators(self):
+    #       return [self.estimator]
+
+    def fit(self, X, y, **params):
+        cv = check_cv(self.cv, y, classifier=True)
+        
+        self.estimators_ = []
+        if self.oob_score:
+            self._oob_decision_function = np.zeroslike(y)
+            self.oob_count_ = np.zeroslike(y, dtype=int)
+
+        for train, test in cv.split(X, y, self.groups):
+            estimator = clone(self.estimator).fit(X[train], y[train], **params)
+            self.estimators_.append(estimator)
+
+            if self.oob_score:
+                self.oob_count_[test] += 1
+
+                if hasattr(self.estimator, "decision_function"):
+                    self._oob_decision_function[test] += estimator.decision_function(X[test])
+                elif hasattr(self.estimator, "predict_proba"):
+                    self._oob_decision_function[test] += np.vstack([
+                        proba[:, 1]
+                        for proba in estimator.predict_proba(X[test])
+                    ]).T
+
+        if self.oob_score:
+            self._oob_decision_function /= self.oob_count_
+
+            if callable(self.oob_score):
+                self.oob_score_ = self.oob_score(y, self._oob_decision_function)
+            else:
+                self.oob_score_ = metrics.accuracy_score(
+                    y, self._oob_decision_function > 0.5, average="micro",
+                )
+
+        return self
+
+    @property
+    def oob_decision_function_(self):
+        return self._oob_decision_function
+
+
+# class CVRegressor(MultiOutputVotingRegressor):
+class CVRegressor(BaseEstimator):
+    def __init__(self, estimator, cv=None, groups=None, oob_score=False):
+        self.estimator = estimator
+        self.cv = cv
+        self.groups = groups
+        self.oob_score = oob_score
+
+    # @property
+    # def estimators(self):
+    #     return [self.estimator]
+
+    # def get_params(self, deep=True):
+    #     return self._get_params("estimator", deep=deep)
+
+    # def set_params(self, **params):
+    #     return self._set_params("estimator", **params)
+
+    def predict(self, X, **params):
+        outputs = [
+            estimator.predict(X, **params)
+            for estimator in self.estimators_
+        ]
+        return np.mean(outputs, axis=0)
+    
+    @property
+    def n_outputs_(self):
+        return self.estimators_[0].n_outputs_
+
+    def _more_tags(self):
+        return {"multioutput": True}
+
+    def fit(self, X, y, **params):
+        cv = check_cv(self.cv, y, classifier=False)
+        
+        self.estimators_ = []
+        if self.oob_score:
+            self._oob_prediction = np.zeroslike(y)
+            self.oob_count_= np.zeroslike(y, dtype=int)
+
+        for train, test in cv.split(X, y, self.groups):
+            estimator = clone(self.estimator).fit(X[train], y[train], **params)
+            self.estimators_.append(estimator)
+
+            if self.oob_score:
+                self.oob_count_[test] += 1
+                pred = estimator.predict(X[test])
+                self._oob_prediction[test] += pred
+
+        if self.oob_score:
+            self._oob_prediction /= self.oob_count_
+
+            if callable(self.oob_score):
+                self.oob_score_ = self.oob_score(y, self._oob_prediction)
+            else:
+                self.oob_score_ = metrics.mean_squared_error(y, self._oob_prediction)
+
+        return self
+    
+    @property
+    def oob_prediction_(self):
+        return self._oob_prediction
 
 
 class ProbaTransformer(

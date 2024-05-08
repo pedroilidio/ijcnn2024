@@ -12,6 +12,7 @@ from sklearn.base import (
 )
 import sklearn.utils
 from sklearn.utils._param_validation import Interval, StrOptions, HasMethods
+from sklearn.preprocessing import MinMaxScaler
 from imblearn.base import BaseSampler
 
 
@@ -182,11 +183,12 @@ def estimate_label_frequency_lower_bound(
     random_state = sklearn.utils.check_random_state(random_state)
     c_estimates = []
     c_its_estimates = []
+    scaled_X = MinMaxScaler().fit_transform(X)
 
     for y_col in y.T:
         y_bit_col = bitarray(list(y_col.astype(bool)))
         c_estimate, c_its_estimate = _tice(
-            data=X,
+            data=scaled_X,
             labels=y_bit_col,
             k=max_bepp,
             folds=random_state.randint(n_folds, size=len(X)),  # FIXME

@@ -11,6 +11,7 @@ from statsmodels.stats.multitest import multipletests
 import scikit_posthocs as sp
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tqdm import tqdm
 
 from critical_difference_diagrams import (
     plot_critical_difference_diagram,
@@ -437,6 +438,17 @@ def plot_everything(
         ]
         metric_names &= set(df2.columns)
 
+    print(
+        "Original selection:"
+        + "\n  estimator_subset:\n  - " + "\n  - ".join(estimator_subset or [])
+        + "\n  dataset_subset:\n  - " + "\n  - ".join(dataset_subset or [])
+        + "\n  metric_subset:\n  - " + "\n  - ".join(metric_subset or [])
+        + "\nSelected data:"
+        + "\n  estimator_subset:\n  - " + "\n  - ".join(df2.estimator.unique())
+        + "\n  dataset_subset:\n  - " + "\n  - ".join(df2.dataset.unique())
+        + "\n  metric_subset:\n  - " + "\n  - ".join(df2.columns[df2.dtypes == float])
+    )
+
     if df2.empty:
         raise ValueError(
             "No data selected. Please review the filter parameters specified:"
@@ -483,7 +495,8 @@ def plot_everything(
     )
     discarded_datasets = set(df2.dataset) - set(allsets_data.dataset)
     if discarded_datasets:
-        print(
+        # print(
+        raise RuntimeError(
             "The following datasets were not present for all estimators and"
             " will not be considered for rankings across all datasets:"
             f" {discarded_datasets}"
@@ -541,9 +554,10 @@ def plot_everything(
     df2 = df2.dropna(axis=1, how="all")  # FIXME: something is bringing nans back
 
     table_lines = []
+    grouped = df2.groupby("dataset", sort=False)
 
     # Make visualizations of pairwise estimator comparisons.
-    for dataset_name, dataset_group in df2.groupby("dataset", sort=False):
+    for dataset_name, dataset_group in tqdm(grouped, total=grouped.ngroups):
 
         # Existence is assured by make_visualizations()
         outdir = main_outdir / dataset_name
@@ -557,7 +571,7 @@ def plot_everything(
             p_adjust="fdr_bh",
             hue=hue,
         ):
-            print(f"  ==> Processing {dataset_name=} {metric=}")
+            # print(f"  ==> Processing {dataset_name=} {metric=}")
             if pvalue_crosstable.isna().any().any():
                 warnings.warn(
                     f"NaNs found in the pvalue crosstable for {metric=} on"

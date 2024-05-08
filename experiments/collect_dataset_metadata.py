@@ -26,9 +26,7 @@ def collect_dataset_metadata(config_file, output_file, unsafe_yaml=False):
         "n_features": int,
         "n_labels": int,
         "y_size": int,
-        "micro_label_density": float,
-        "macro_label_density": float,
-        "samples_label_density": float,
+        "label_density": float,
     }
 
     # Create empty DataFrame with column names and types
@@ -42,8 +40,6 @@ def collect_dataset_metadata(config_file, output_file, unsafe_yaml=False):
             y.shape[1],
             y.size,
             y.mean(),
-            y.mean(0).mean(),
-            y.mean(1).mean(),
         )
     metadata = metadata.astype(columns).sort_values("y_size")
 

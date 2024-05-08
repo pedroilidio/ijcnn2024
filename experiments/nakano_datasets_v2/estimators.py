@@ -59,9 +59,14 @@ from deep_forest.estimator_adapters import (
     MultiOutputVotingClassifier,
     MultiOutputVotingRegressor,
     TreeEmbedderWithOutput,
+    CVClassifier,
+    CVRegressor,
+    UnanimityClassifier,
 )
+
 from nakano_datasets_v2 import scoring
 from positive_dropper import PositiveDropper
+import label_complement
 
 
 RSTATE = 0  # check_random_state(0)
@@ -191,6 +196,34 @@ xt_embedder = (#UndersampledTransformer(
     #n_samples=MAX_EMBEDDING_SAMPLES
 )
 
+xt_embedder_pca = Pipeline([
+    ("embedder", xt_embedder),
+    ("densifier", Densifier()),
+    ("pca", PCA(n_components=N_COMPONENTS, random_state=RSTATE)),
+])
+
+rf_embedder_pca = Pipeline([
+    ("embedder", rf_embedder),
+    ("densifier", Densifier()),
+    ("pca", PCA(n_components=N_COMPONENTS, random_state=RSTATE)),
+])
+
+xt_proba_transformer = EstimatorAsTransformer(
+    ExtraTreesRegressor(
+        **FOREST_PARAMS,
+        # oob_score=True,  # Only necessary for final estimator
+        max_samples=0.5,
+        bootstrap=True,  # Default for RF
+    ),
+)
+rf_proba_transformer = EstimatorAsTransformer(
+    RandomForestRegressor(
+        **FOREST_PARAMS,
+        # oob_score=True,  # Only necessary for final estimator
+        max_samples=0.5,
+        bootstrap=True,
+    ),
+)
 
 final_estimator = RegressorAsBinaryClassifier(
     MultiOutputVotingRegressor(
@@ -218,89 +251,46 @@ final_estimator = RegressorAsBinaryClassifier(
 )
 
 
-# For the number of PCA components in our method, we have optimized the number
-# of components c"sqrt"nsidering a percentage of the total number of decision path
-# features{1 component, 1%, 5%, 20%, 40%, 60%, 80%, 95%} multiplied by min(N,
-# |c|), being N the number of instances in the dataset and |c| the number of
-# nodes in the ensemble. [we fixed that percentage to N_COMPONENTS]
+# Copies final_estimator.
+fixed_level_proba = FeatureUnion([
+    ("rf", rf_proba_transformer),
+    ("xt", xt_proba_transformer),
+])
 
 alternating_level_embedding = AlternatingLevel([
-    ("xt_embedder", Pipeline([
-        ("xt", xt_embedder),
-        ("densifier", Densifier()),
-        (
-            "pca",
-            PCA(n_components=N_COMPONENTS, random_state=RSTATE),
-            # LOBPCGTruncatedSVD(
-            #     n_components=N_COMPONENTS,
-            #     max_components=800,
-            #     random_state=RSTATE,
-            # ),
-        ),
-    ])),
-    ("rf_embedder", Pipeline([
-        ("rf", rf_embedder),
-        ("densifier", Densifier()),
-        (
-            "pca",
-            PCA(n_components=N_COMPONENTS, random_state=RSTATE),
-            # LOBPCGTruncatedSVD(
-            #     n_components=N_COMPONENTS,
-            #     max_components=800,
-            #     random_state=RSTATE,
-            # ),
-        ),
-    ])),
+    ("rf", rf_embedder_pca),
+    ("xt", xt_embedder_pca),
 ])
 
-
-alternating_level_proba = AlternatingLevel(
-    [
-        (
-            "rf",
-            EstimatorAsTransformer(
-                RandomForestRegressor(**FOREST_PARAMS)
-            ),
-        ),
-        (
-            "xt",
-            EstimatorAsTransformer(
-                ExtraTreesRegressor(**FOREST_PARAMS)
-            ),
-        ),
-    ]
-)
+alternating_level_proba = AlternatingLevel([
+    ("xt", xt_proba_transformer),
+    ("rf", rf_proba_transformer),
+])
 
 alternating_level_embedding_proba = AlternatingLevel([
-    ("xt", TreeEmbedderWithOutput(
-            xt_embedder,
-            post_transformer=Pipeline([
-                ("densifier", Densifier()),
-                ("pca", PCA(n_components=N_COMPONENTS, random_state=RSTATE)),
-            ]),
-            # post_transformer=PCA(n_components=N_COMPONENTS, random_state=RSTATE),
-            # post_transformer=LOBPCGTruncatedSVD(
-            #     n_components=N_COMPONENTS,
-            #     max_components=800,
-            #     random_state=RSTATE,
-            # ),
-        ),
-    ),
-    ("rf", TreeEmbedderWithOutput(
-            rf_embedder,
-            post_transformer=Pipeline([
-                ("densifier", Densifier()),
-                ("pca", PCA(n_components=N_COMPONENTS, random_state=RSTATE)),
-            ]),
-            # post_transformer=PCA(n_components=N_COMPONENTS, random_state=RSTATE),
-            # LOBPCGTruncatedSVD(
-            #     n_components=N_COMPONENTS,
-            #     max_components=800,
-            #     random_state=RSTATE,
-            # ),
-        ),
-    ),
+    ("rf", FeatureUnion([("embedder", rf_embedder_pca), ("proba", rf_proba_transformer)])),
+    ("xt", FeatureUnion([("embedder", xt_embedder_pca), ("proba", xt_proba_transformer)])),
 ])
+
+# TODO: faster but different from Nakano et al. (2023)
+# alternating_level_embedding_proba = AlternatingLevel([
+#     ("xt", TreeEmbedderWithOutput(
+#             xt_embedder,
+#             post_transformer=Pipeline([
+#                 ("densifier", Densifier()),
+#                 ("pca", PCA(n_components=N_COMPONENTS, random_state=RSTATE)),
+#             ]),
+#         ),
+#     ),
+#     ("rf", TreeEmbedderWithOutput(
+#             rf_embedder,
+#             post_transformer=Pipeline([
+#                 ("densifier", Densifier()),
+#                 ("pca", PCA(n_components=N_COMPONENTS, random_state=RSTATE)),
+#             ]),
+#         ),
+#     ),
+# ])
 
 imputer_estimator = MultiOutputVotingRegressor(
     estimators=[
@@ -326,21 +316,38 @@ imputer_estimator = MultiOutputVotingRegressor(
 )
 
 scar_imputer = weak_labels.SCARImputer(
-    # Tolerance p-value for label frequency estimation (called "c", see TIcE
-    # from Bekker and Davis 2018) 
     label_freq_percentile=0.95,
     verbose=True,
     estimator=imputer_estimator,
 )
 
 lc_imputer = weak_labels.LabelComplementImputer(
-    # Tolerance p-value for label frequency estimation (called "c", see TIcE
-    # from Bekker and Davis 2018) 
-    label_freq_percentile=0.5,
+    label_freq_percentile=0.95,
     verbose=True,
     estimator=imputer_estimator,
     weight_proba=False,
 )
+
+wang_imputer = label_complement.LabelComplementImputer(
+    estimator=UnanimityClassifier(
+        estimators=[
+            ("rf", RandomForestClassifier(**FOREST_PARAMS)),
+            ("et", ExtraTreesClassifier(**FOREST_PARAMS)),
+        ],
+        threshold=0.4,
+    ),
+    verbose=True,
+    tice_params=dict(max_bepp=5, max_splits=500, min_set_size=5),  # random_state=RSTATE),
+    cv_params=dict(cv=5),
+)
+
+# zhou_level = FeatureUnion(  # Too slow.
+#     [
+#         ("rf", EstimatorAsTransformer(CVRegressor(RandomForestRegressor(**FOREST_PARAMS), cv=5))),
+#         ("xt", EstimatorAsTransformer(CVRegressor(ExtraTreesRegressor(**FOREST_PARAMS), cv=5))),
+#     ]
+# )
+
 
 # ===========================================================================
 # Cascade estimators
@@ -359,8 +366,8 @@ cascade_tree_embedder = clone(Cascade(
 ))
 
 cascade_tree_embedder_chi2 = clone(cascade_tree_embedder).set_params(
-    level__rf_embedder__rf__max_pvalue=0.05,
-    level__xt_embedder__xt__max_pvalue=0.05,
+    level__rf__embedder__max_pvalue=0.05,
+    level__xt__embedder__max_pvalue=0.05,
 )
 
 cascade_tree_embedder_proba = clone(Cascade(
@@ -369,6 +376,7 @@ cascade_tree_embedder_proba = clone(Cascade(
     **CASCADE_PARAMS,
 ))
 
+# TODO: Change name "alternating_forests"
 cascade_lc_proba = clone(Cascade(
     level=SequentialLevel([
         ("alternating_forests", alternating_level_proba),
@@ -399,8 +407,8 @@ cascade_lc_tree_embedder_proba = clone(Cascade(
 cascade_lc_tree_embedder_chi2 = clone(
     cascade_lc_tree_embedder,
 ).set_params(
-    level__alternating_forests__rf_embedder__rf__max_pvalue=0.05,
-    level__alternating_forests__xt_embedder__xt__max_pvalue=0.05,
+    level__alternating_forests__rf__embedder__max_pvalue=0.05,
+    level__alternating_forests__xt__embedder__max_pvalue=0.05,
 )
 
 cascade_scar_proba = clone(Cascade(
@@ -433,11 +441,29 @@ cascade_scar_tree_embedder_proba = clone(Cascade(
 cascade_scar_tree_embedder_chi2 = clone(
     cascade_scar_tree_embedder,
 ).set_params(
-    level__alternating_forests__rf_embedder__rf__max_pvalue=0.05,
-    level__alternating_forests__xt_embedder__xt__max_pvalue=0.05,
+    level__alternating_forests__rf__embedder__max_pvalue=0.05,
+    level__alternating_forests__xt__embedder__max_pvalue=0.05,
 )
 
+cascade_wang = clone(Cascade(
+    level=SequentialLevel([
+        # ("transformer", zhou_level),
+        ("transformer", fixed_level_proba),
+        ("label_imputer", wang_imputer),
+    ]),
+    final_estimator=final_estimator,
+    **CASCADE_PARAMS,
+))
+
+cascade_zhou = clone(Cascade(
+    # level=zhou_level,
+    level=fixed_level_proba,
+    final_estimator=final_estimator,
+    **CASCADE_PARAMS,
+))
+
 estimators_dict = {
+    "cascade_wang": cascade_proba,
     "cascade_proba": cascade_proba,
     "cascade_tree_embedder": cascade_tree_embedder,
     "cascade_tree_embedder_chi2": cascade_tree_embedder_chi2,

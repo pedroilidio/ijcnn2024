@@ -8,8 +8,15 @@ import seaborn as sns
 from scipy import stats
 from tqdm import tqdm
 
+idx = pd.IndexSlice
 outdir = Path("__file__").parent / "level_comparison"
 outdir.mkdir(exist_ok=True)
+
+outdir_conf_matrix = outdir.parent / "confusion_matrix_plots"
+outdir_conf_matrix.mkdir(exist_ok=True)
+
+outdir_imputation = outdir.parent / "imputation_plots"
+outdir_imputation.mkdir(exist_ok=True)
 # %%
 print("Reading data")
 data = pd.read_table('results_renamed.tsv')
@@ -113,14 +120,133 @@ allsets = (
 # %%
 grouped = allsets.groupby(level=["estimator", "metric"])#, "scorer"]):
 for gname, g in tqdm(grouped, total=grouped.ngroups):
-# for gname, g in allsets.groupby(level=["estimator.name", "metric", "scorer"]):
     g = g.reset_index()
     g = g[g["scorer"].isin(("test", "train_internal", "train_oob_internal"))]
     sns.boxplot(g, x="level", y=0, hue="scorer", showfliers=False)
-    sns.swarmplot(g, x="level", y=0, hue="scorer", palette="dark:k", dodge=True, size=2, legend=False)
-    # sns.boxplot(g, x="level", y=0, hue="scorer")
+    # sns.swarmplot(g, x="level", y=0, hue="scorer", palette="dark:k", dodge=True, size=2, legend=False)
+    sns.stripplot(g, x="level", y=0, hue="scorer", palette="dark:k", dodge=True, size=2, legend=False)
     plt.title(f"{' | '.join(gname)}")
     outpath = outdir / ("/".join(gname) + ".png")
     outpath.parent.mkdir(exist_ok=True, parents=True)
     plt.savefig(outpath)
+    plt.close()
+
+
+# =============================================================================
+# Imputation plots
+# =============================================================================
+
+imputation_scores = data.loc[
+    data.index.get_level_values("level") > 0,
+    idx[
+        [
+            "tp_micro", "tn_micro", "fp_micro", "fn_micro", "recall_micro",
+            "precision_micro", "average_precision_micro", "roc_auc_micro",
+        ],
+        ["train", "train_internal", "train_masked"],
+    ]
+]
+# imputation_scores = imputation_scores.filter(like="cascade_scar_proba", axis=0)
+imputation_scores = imputation_scores.dropna(how="any", axis=0)
+
+imputation_scores[("expected_p", "expected_p")] = (
+    imputation_scores.loc[:, idx[["tp_micro", "fn_micro"], "train_internal"]].abs().sum(axis=1)
+    / imputation_scores.reset_index("avg_label_freq")["avg_label_freq"]
+).values
+
+# Train internal scores are computed after dropping labels to simulate missing
+# data.
+p = imputation_scores.loc[:, idx[["tp_micro", "fn_micro"], "train"]].abs().sum(axis=1)
+# p = imputation_scores.loc[:, idx[["tp_micro", "fn_micro"], "train_internal"]].abs().sum(axis=1)
+# imputation_scores["positives"] = p.values
+
+allsets_imputation = (
+    imputation_scores.abs()
+    .div(p, axis=0)  # Normalize by number of labels
+    .groupby(level=["estimator", "dataset", "level"])
+    .mean()  # Average over folds
+    .groupby(level=["estimator", "level"])
+    .mean()  # Average over datasets
+)
+
+print("Generating imputation plots")
+grouped = allsets_imputation.groupby(level="estimator")
+for gname, g in tqdm(grouped, total=grouped.ngroups):
+    g = (
+        g.loc[:, idx[:, ["train", "expected_p"]]]
+        .droplevel("scorer", axis=1)
+        .reset_index("level")
+    )
+    ax = g.plot.area(
+        x="level",
+        y=["tp_micro", "fp_micro"],
+        title=gname,
+        stacked=True,
+        alpha=0.5,
+    )
+    g.plot(
+        ax=ax,
+        x="level",
+        y="expected_p",
+        color="k",
+        linestyle="--",
+    )
+    ax.axhline(1, color="k", linestyle="-")
+    ax.set_ylim()
+    plt.savefig(outdir_conf_matrix / f"{gname}.png")
+    plt.close()
+
+
+# Scores considering only imputted labels
+
+imputation_scores[("expected_p", "expected_p")] = (
+    imputation_scores.loc[:, idx[["tp_micro", "fn_micro"], "train_internal"]].abs().sum(axis=1)
+    * (1 / imputation_scores.reset_index("avg_label_freq")["avg_label_freq"] - 1)
+).values
+
+imputation_scores[("expected_p", "expected_p")]  /= (
+    imputation_scores[("expected_p", "expected_p")]
+    + imputation_scores.loc[:, idx[["tn_micro", "fp_micro"], "train_internal"]].abs().sum(axis=1)
+)
+
+# Train internal scores are computed after dropping labels to simulate missing
+# data.
+p = imputation_scores.loc[:, idx[["tp_micro", "fn_micro"], "train_masked"]].abs().sum(axis=1)
+# p = imputation_scores.loc[:, idx[["tp_micro", "fn_micro"], "train_internal"]].abs().sum(axis=1)
+# imputation_scores["positives"] = p.values
+
+allsets_imputation = (
+    imputation_scores.abs()
+    .div(p, axis=0)  # Normalize by number of labels
+    .groupby(level=["estimator", "dataset", "level"])
+    .mean()  # Average over folds
+    .groupby(level=["estimator", "level"])
+    .mean()  # Average over datasets
+)
+
+print("Generating imputation plots")
+grouped = allsets_imputation.groupby(level="estimator")
+for gname, g in tqdm(grouped, total=grouped.ngroups):
+    g = (
+        g.loc[:, idx[:, ["train_masked", "expected_p"]]]
+        .droplevel("scorer", axis=1)
+        .reset_index("level")
+    )
+    ax = g.plot.area(
+        x="level",
+        y=["tp_micro", "fp_micro"],
+        title=gname,
+        stacked=True,
+        alpha=0.5,
+    )
+    g.plot(
+        ax=ax,
+        x="level",
+        y="expected_p",
+        color="k",
+        linestyle="--",
+    )
+    ax.axhline(1, color="k", linestyle="-")
+    ax.set_ylim()
+    plt.savefig(outdir_imputation / f"{gname}.png")
     plt.close()
