@@ -1,0 +1,128 @@
+name: Deep forests with tree-embeddings and label imputation for weak-label scenarios
+
+# Pyenv environment file
+python_env: pyenv_environment.yml
+
+# Optionally, a conda environment file is also provided to be used instead:
+# conda_env: conda_environment.yml
+
+entry_points:
+
+  # Rerun everything from scratch (takes very long time). This command is a
+  # combination of the run_experiments, gather_results, and plot commands. 
+  main:
+    command: >-
+      python scripts/running/run_experiments.py
+      --config config.yml
+      --unsafe-yaml
+
+      python scripts/wrappers/gather_results.py
+      --outdir results
+      --runs runs
+
+      python scripts/wrappers/plot.py
+
+  # If one does not want to rerun everything, we store the run results used in
+  # our paper in the paper_runs folder. This command will process these results
+  # and generate the plots used in the paper. It is a combination of the
+  # gather_results and plot commands.
+  generate_paper_plots:
+    command: >-
+      python scripts/wrappers/gather_results.py
+      --outdir results
+      --runs paper_runs
+
+      python scripts/wrappers/plot.py
+    
+  # Run the experiments. This command will run the experiments defined in the
+  # config.yml file.
+  run_experiments:
+    parameters:
+      config: {type: string, default: config.yml}
+      log-file: {type: string, default: experiments.log}
+      log-level: {type: string, default: INFO}
+    command: >-
+      python scripts/running/run_experiments.py
+      --config {config}
+      --log-level {log-level}
+      --unsafe-yaml
+
+  # Compile results from runs into a single table.
+  gather_results:
+    parameters:
+      outdir: {type: string, default: results}
+      runs: {type: string, default: runs}
+    command: >-
+      python scripts/wrappers/gather_results.py
+      --outdir {outdir}
+      --runs {runs}
+
+  # Generate plots comparing the performance of the estimators under study.
+  plot:
+    parameters:
+      outdir: {type: string, default: results/statistical_comparisons}
+      results: {type: string, default: results/results_renamed_final.tsv}
+      estimators:
+        type: string
+        default: >-
+          RF+ET
+          gcForest
+          LCForest
+          SLCForest
+          FLAForest
+          CaFE
+          CaFE-OS
+          CaFE-SLC
+          CaFE-FLA
+      datasets:
+        type: string
+        default: >-
+          VirusGO
+          VirusPseAAC
+          flags
+          GrampositivePseAAC
+          CHD_49
+          emotions
+          Gram_negative
+          PlantGO
+          birds
+          scene
+          yeast
+          medical
+          enron
+      metrics:
+        type: string
+        default: >-
+          test_roc_auc_micro
+          test_average_precision_micro
+          test_neg_hamming_loss_micro
+          test_neg_label_ranking_loss
+          test_f1_micro
+          test_matthews_corrcoef_micro
+    command: >-
+      python scripts/wrappers/plot.py
+      --outdir {outdir}
+      --results-table {results}
+      --estimators {estimators}
+      --datasets {datasets}
+      --metrics {metrics}
+
+  # Gather metadata about the datasets used in the experiments. The output is
+  # stored by default in "dataset_metadata.tsv". This corresponds to Table 2 in
+  # the paper.
+  dataset_metadata:
+    parameters:
+      config: {type: string, default: config.yml}
+      output: {type: string, default: dataset_metadata.tsv}
+    command: >-
+      python scripts/running/collect_dataset_metadata.py
+      --config {config}
+      --output {output}
+      --unsafe-yaml
+
+  # Not explored in the paper, but can be used to generate plots comparing the
+  # performance of the estimators under study at different levels of the
+  # cascade. The resulting plots show how the training, test, and OOB performance
+  # vary across the levels of the deep forests.
+  level_comparison:
+    command: python scripts/plotting/plot_level_comparison.py
