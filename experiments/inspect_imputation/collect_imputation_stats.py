@@ -9,12 +9,12 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import check_random_state
 from sklearn.metrics import confusion_matrix
+from skmultilearn.dataset import load_dataset
 from deep_forest.cascade import Cascade
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from nakano_datasets_v2.estimators import estimators_dict
-from nakano_datasets_v2.scoring import level_scorers
-from data_loaders import load_nakano
+from estimators import estimators_dict
+from run_cascades import load_dataset_wrapper
 
 DEF_PATH_LOG = Path(__file__).with_suffix(".log")
 DEF_LOG_LEVEL = "INFO"
@@ -22,6 +22,27 @@ DEF_OUT_DIR = Path("results")
 DEF_N_JOBS = 1
 DEF_K = 5 # number of folds for cross-validation
 RSTATE = 0  # seed for random state
+SCORING = [
+    "f1_macro",
+    "f1_micro",
+    "f1_weighted",
+    "f1_samples",
+    "precision_macro",
+    "precision_micro",
+    "precision_weighted",
+    "precision_samples",
+    "recall_macro",
+    "recall_micro",
+    "recall_weighted",
+    "recall_samples",
+    "jaccard_macro",
+    "jaccard_micro",
+    "jaccard_weighted",
+    "jaccard_samples",
+    # "average_precision",
+    # "neg_brier_score",
+    "accuracy",
+]
 
 
 # @validate_params
@@ -37,7 +58,6 @@ def positive_unlabeled_cross_validate(
     y,
     random_state,
     n_jobs,
-    scoring,
 ):
     """Cross-validate imputers of a cascade masking positive labels.
 
@@ -84,13 +104,11 @@ def positive_unlabeled_cross_validate(
             **cascade.get_params(deep=False) | dict(
                 random_state=random_state,
                 # final_estimator="passthrough",
-                min_levels=0,
-                max_levels=9,
+                max_levels=10,
                 # validation_size=0.2,
                 validation_size=(X_val, y_val),
-                trim_to_best_score=False,
                 refit=False,
-                scoring=scoring,
+                scoring=SCORING,
             )
         )
         cascade_.fit(X, y_sample)
@@ -105,7 +123,7 @@ def positive_unlabeled_cross_validate(
             tn, fp, fn, tp = confusion_matrix(
                 y[eval_indices],
                 y_resampled[eval_indices],
-            ).reshape(-1)
+            ).ravel()
             results.append(
                 level_scores | dict(
                     fold=fold_i, level=level, tn=tn, fp=fp, fn=fn, tp=tp,
@@ -152,49 +170,29 @@ def collect_imputation_stats(
 ):
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    datasets = {
-        "CAL500": "nakano_datasets_v2/datasets/MLC/CAL500.csv",
-        "CHD_49": "nakano_datasets_v2/datasets/MLC/CHD_49.csv",
-        "Gram_negative": "nakano_datasets_v2/datasets/MLC/Gram_negative.csv",
-        "Gram_positive": "nakano_datasets_v2/datasets/MLC/Gram_positive.csv",
-        "GrampositivePseAAC": "nakano_datasets_v2/datasets/MLC/GrampositivePseAAC.csv",
-        "LLOG": "nakano_datasets_v2/datasets/MLC/LLOG.csv",
-        "PlantGO": "nakano_datasets_v2/datasets/MLC/PlantGO.csv",
-        "VirusGO": "nakano_datasets_v2/datasets/MLC/VirusGO.csv",
-        "VirusPseAAC": "nakano_datasets_v2/datasets/MLC/VirusPseAAC.csv",
-        "emotions": "nakano_datasets_v2/datasets/MLC/emotions.csv",
-        "flags": "nakano_datasets_v2/datasets/MLC/flags.csv",
-        "medical": "nakano_datasets_v2/datasets/MLC/medical.csv",
-        "yeast": "nakano_datasets_v2/datasets/MLC/yeast.csv",
-        "scene": "nakano_datasets_v2/datasets/MLC/scene.csv",
-        "genbase": "nakano_datasets_v2/datasets/MLC/genbase.csv",
-        "enron": "nakano_datasets_v2/datasets/MLC/enron.csv",
-        "birds": "nakano_datasets_v2/datasets/MLC/birds.csv"
-    }
+    datasets = [
+        'genbase',  # too sparse
+        'medical',  # too sparse  # ref
+        'scene',  # ref
+        'tmc2007_500',  # ref
+        'yeast',  # ref
+        'emotions',
+        'Corel5k',  # too sparse
+        'bibtex',
+        'birds',  # perfect for testing: 1.4 s per level
+        'delicious',  # 2.4 min per level
+        'enron',
+        'mediamill',
+        'rcv1subset1',
+        'rcv1subset2',
+        'rcv1subset3',
+        'rcv1subset4',
+        'rcv1subset5',
+    ]
 
-    # datasets = [
-    #     'genbase',  # too sparse
-    #     'medical',  # too sparse  # ref
-    #     'scene',  # ref
-    #     'tmc2007_500',  # ref
-    #     'yeast',  # ref
-    #     'emotions',
-    #     'Corel5k',  # too sparse
-    #     'bibtex',
-    #     'birds',  # perfect for testing: 1.4 s per level
-    #     'delicious',  # 2.4 min per level
-    #     'enron',
-    #     'mediamill',
-    #     'rcv1subset1',
-    #     'rcv1subset2',
-    #     'rcv1subset3',
-    #     'rcv1subset4',
-    #     'rcv1subset5',
-    # ]
-
-    for dataset, dataset_path in datasets.items():
+    for dataset in datasets:
         logging.info(f"Loading {dataset}...")
-        data = load_nakano(dataset_path, min_positives=15)
+        data = load_dataset_wrapper(dataset, min_positives=15)
         X, y = data["X"], data["y"]
         logging.info(f"X shape: {X.shape}; y shape: {y.shape}; y density: {y.mean()}")
         assert set(np.unique(y)) == {0, 1}
@@ -250,7 +248,6 @@ def main():
         n_jobs=args.n_jobs,
         k=args.k,
         random_state=args.random_state,
-        scoring=level_scorers,
     )
 
 
