@@ -1,1 +1,0 @@
-python nakano_datasets_per_level/plot_scores_per_level.py nakano_datasets_per_level/results_renamed.tsv  -o nakano_datasets_per_level/plots

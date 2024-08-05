@@ -153,23 +153,23 @@ def collect_imputation_stats(
     out_dir.mkdir(exist_ok=True, parents=True)
 
     datasets = {
-        "VirusGO": "nakano_datasets_v2/datasets/MLC/VirusGO.csv",
-        "VirusPseAAC": "nakano_datasets_v2/datasets/MLC/VirusPseAAC.csv",
-        "flags": "nakano_datasets_v2/datasets/MLC/flags.csv",
+        "CAL500": "nakano_datasets_v2/datasets/MLC/CAL500.csv",
+        "CHD_49": "nakano_datasets_v2/datasets/MLC/CHD_49.csv",
+        "Gram_negative": "nakano_datasets_v2/datasets/MLC/Gram_negative.csv",
         "Gram_positive": "nakano_datasets_v2/datasets/MLC/Gram_positive.csv",
         "GrampositivePseAAC": "nakano_datasets_v2/datasets/MLC/GrampositivePseAAC.csv",
-        "CHD_49": "nakano_datasets_v2/datasets/MLC/CHD_49.csv",
-        "emotions": "nakano_datasets_v2/datasets/MLC/emotions.csv",
-        "Gram_negative": "nakano_datasets_v2/datasets/MLC/Gram_negative.csv",
+        "LLOG": "nakano_datasets_v2/datasets/MLC/LLOG.csv",
         "PlantGO": "nakano_datasets_v2/datasets/MLC/PlantGO.csv",
-        "birds": "nakano_datasets_v2/datasets/MLC/birds.csv",
+        "VirusGO": "nakano_datasets_v2/datasets/MLC/VirusGO.csv",
+        "VirusPseAAC": "nakano_datasets_v2/datasets/MLC/VirusPseAAC.csv",
+        "emotions": "nakano_datasets_v2/datasets/MLC/emotions.csv",
+        "flags": "nakano_datasets_v2/datasets/MLC/flags.csv",
+        "medical": "nakano_datasets_v2/datasets/MLC/medical.csv",
+        "yeast": "nakano_datasets_v2/datasets/MLC/yeast.csv",
         "scene": "nakano_datasets_v2/datasets/MLC/scene.csv",
         "genbase": "nakano_datasets_v2/datasets/MLC/genbase.csv",
-        "yeast": "nakano_datasets_v2/datasets/MLC/yeast.csv",
-        "medical": "nakano_datasets_v2/datasets/MLC/medical.csv",
-        "CAL500": "nakano_datasets_v2/datasets/MLC/CAL500.csv",
         "enron": "nakano_datasets_v2/datasets/MLC/enron.csv",
-        "LLOG": "nakano_datasets_v2/datasets/MLC/LLOG.csv",
+        "birds": "nakano_datasets_v2/datasets/MLC/birds.csv"
     }
 
     # datasets = [
@@ -218,7 +218,6 @@ def collect_imputation_stats(
                     y=y,
                     n_jobs=n_jobs,
                     random_state=random_state,
-                    scoring=level_scorers,
                 )
                 results_df.to_csv(out_path, sep="\t", index=False)
                 logging.info("Results saved.")
@@ -251,6 +250,7 @@ def main():
         n_jobs=args.n_jobs,
         k=args.k,
         random_state=args.random_state,
+        scoring=level_scorers,
     )
 
 

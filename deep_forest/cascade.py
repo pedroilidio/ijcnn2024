@@ -325,7 +325,6 @@ class Cascade(Pipeline):
             self.__class__.__name__,
             self._log_message(message="Fit and score final estimator")
         ):
-            # TODO: store fitted estimators in something like self.fitted_heads_
             estimator = clone(self.final_estimator).fit(X, y)
 
         X_val = self._apply_transformers(X_val)
