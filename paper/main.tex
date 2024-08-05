@@ -1,0 +1,1474 @@
+%% bare_conf_compsoc.tex
+%% V1.4b
+%% 2015/08/26
+%% by Michael Shell
+%% See:
+%% http://www.michaelshell.org/
+%% for current contact information.
+%%
+%% This is a skeleton file demonstrating the use of IEEEtran.cls
+%% (requires IEEEtran.cls version 1.8b or later) with an IEEE Computer
+%% Society conference paper.
+%%
+%% Support sites:
+%% http://www.michaelshell.org/tex/ieeetran/
+%% http://www.ctan.org/pkg/ieeetran
+%% and
+%% http://www.ieee.org/
+
+%%*************************************************************************
+%% Legal Notice:
+%% This code is offered as-is without any warranty either expressed or
+%% implied; without even the implied warranty of MERCHANTABILITY or
+%% FITNESS FOR A PARTICULAR PURPOSE! 
+%% User assumes all risk.
+%% In no event shall the IEEE or any contributor to this code be liable for
+%% any damages or losses, including, but not limited to, incidental,
+%% consequential, or any other damages, resulting from the use or misuse
+%% of any information contained here.
+%%
+%% All comments are the opinions of their respective authors and are not
+%% necessarily endorsed by the IEEE.
+%%
+%% This work is distributed under the LaTeX Project Public License (LPPL)
+%% ( http://www.latex-project.org/ ) version 1.3, and may be freely used,
+%% distributed and modified. A copy of the LPPL, version 1.3, is included
+%% in the base LaTeX documentation of all distributions of LaTeX released
+%% 2003/12/01 or later.
+%% Retain all contribution notices and credits.
+%% ** Modified files should be clearly indicated as such, including  **
+%% ** renaming them and changing author support contact information. **
+%%*************************************************************************
+
+
+% *** Authors should verify (and, if needed, correct) their LaTeX system  ***
+% *** with the testflow diagnostic prior to trusting their LaTeX platform ***
+% *** with production work. The IEEE's font choices and paper sizes can   ***
+% *** trigger bugs that do not appear when using other class files.       ***                          ***
+% The testflow support page is at:
+% http://www.michaelshell.org/tex/testflow/
+
+
+
+\documentclass[conference,compsoc]{IEEEtran}
+% Some/most Computer Society conferences require the compsoc mode option,
+% but others may want the standard conference format.
+%
+% If IEEEtran.cls has not been installed into the LaTeX system files,
+% manually specify the path to it like:
+% \documentclass[conference,compsoc]{../sty/IEEEtran}
+
+
+
+
+
+% Some very useful LaTeX packages include:
+% (uncomment the ones you want to load)
+
+
+% *** MISC UTILITY PACKAGES ***
+%
+%\usepackage{ifpdf}
+% Heiko Oberdiek's ifpdf.sty is very useful if you need conditional
+% compilation based on whether the output is pdf or dvi.
+% usage:
+% \ifpdf
+%   % pdf code
+% \else
+%   % dvi code
+% \fi
+% The latest version of ifpdf.sty can be obtained from:
+% http://www.ctan.org/pkg/ifpdf
+% Also, note that IEEEtran.cls V1.7 and later provides a builtin
+% \ifCLASSINFOpdf conditional that works the same way.
+% When switching from latex to pdflatex and vice-versa, the compiler may
+% have to be run twice to clear warning/error messages.
+
+
+
+
+
+
+% *** CITATION PACKAGES ***
+%
+\ifCLASSOPTIONcompsoc
+  % IEEE Computer Society needs nocompress option
+  % requires cite.sty v4.0 or later (November 2003)
+  \usepackage[nocompress]{cite}
+  %\usepackage{natbib}
+\else
+  % normal IEEE
+  \usepackage{cite}
+\fi
+% cite.sty was written by Donald Arseneau
+% V1.6 and later of IEEEtran pre-defines the format of the cite.sty package
+% \cite{} output to follow that of the IEEE. Loading the cite package will
+% result in citation numbers being automatically sorted and properly
+% "compressed/ranged". e.g., [1], [9], [2], [7], [5], [6] without using
+% cite.sty will become [1], [2], [5]--[7], [9] using cite.sty. cite.sty's
+% \cite will automatically add leading space, if needed. Use cite.sty's
+% noadjust option (cite.sty V3.8 and later) if you want to turn this off
+% such as if a citation ever needs to be enclosed in parenthesis.
+% cite.sty is already installed on most LaTeX systems. Be sure and use
+% version 5.0 (2009-03-20) and later if using hyperref.sty.
+% The latest version can be obtained at:
+% http://www.ctan.org/pkg/cite
+% The documentation is contained in the cite.sty file itself.
+%
+% Note that some packages require special options to format as the Computer
+% Society requires. In particular, Computer Society  papers do not use
+% compressed citation ranges as is done in typical IEEE papers
+% (e.g., [1]-[4]). Instead, they list every citation separately in order
+% (e.g., [1], [2], [3], [4]). To get the latter we need to load the cite
+% package with the nocompress option which is supported by cite.sty v4.0
+% and later.
+
+
+
+
+
+% *** GRAPHICS RELATED PACKAGES ***
+%
+\ifCLASSINFOpdf
+  \usepackage[pdftex]{graphicx}
+  % \usepackage{subcaption}
+  % declare the path(s) where your graphic files are
+  \graphicspath{{../experiments/results/statistical_comparisons}}
+  % and their extensions so you won't have to specify these with
+  % every instance of \includegraphics
+  % \DeclareGraphicsExtensions{.pdf,.jpeg,.png}
+  \DeclareGraphicsExtensions{.pdf}
+\else
+  % or other class option (dvipsone, dvipdf, if not using dvips). graphicx
+  % will default to the driver specified in the system graphics.cfg if no
+  % driver is specified.
+  % \usepackage[dvips]{graphicx}
+  % declare the path(s) where your graphic files are
+  % \graphicspath{{../eps/}}
+  % and their extensions so you won't have to specify these with
+  % every instance of \includegraphics
+  % \DeclareGraphicsExtensions{.eps}
+\fi
+% graphicx was written by David Carlisle` and Sebastian Rahtz. It is
+% required if you want graphics, photos, etc. graphicx.sty is already
+% installed on most LaTeX systems. The latest version and documentation
+% can be obtained at: 
+% http://www.ctan.org/pkg/graphicx
+% Another good source of documentation is "Using Imported Graphics in
+% LaTeX2e" by Keith Reckdahl which can be found at:
+% http://www.ctan.org/pkg/epslatex
+%
+% latex, and pdflatex in dvi mode, support graphics in encapsulated
+% postscript (.eps) format. pdflatex in pdf mode supports graphics
+% in .pdf, .jpeg, .png and .mps (metapost) formats. Users should ensure
+% that all non-photo figures use a vector format (.eps, .pdf, .mps) and
+% not a bitmapped formats (.jpeg, .png). The IEEE frowns on bitmapped formats
+% which can result in "jaggedy"/blurry rendering of lines and letters as
+% well as large increases in file sizes.
+%
+% You can find documentation about the pdfTeX application at:
+% http://www.tug.org/applications/pdftex
+
+
+
+
+
+% *** MATH PACKAGES ***
+%
+\usepackage{amsmath}
+\usepackage{amssymb} %
+% A popular package from the American Mathematical Society that provides
+% many useful and powerful commands for dealing with mathematics.
+%
+% Note that the amsmath package sets \interdisplaylinepenalty to 10000
+% thus preventing page breaks from occurring within multiline equations. Use:
+%\interdisplaylinepenalty=2500
+% after loading amsmath to restore such page breaks as IEEEtran.cls normally
+% does. amsmath.sty is already installed on most LaTeX systems. The latest
+% version and documentation can be obtained at:
+% http://www.ctan.org/pkg/amsmath
+
+
+
+
+
+% *** SPECIALIZED LIST PACKAGES ***
+%
+%\usepackage{algorithmic}
+% algorithmic.sty was written by Peter Williams and Rogerio Brito.
+% This package provides an algorithmic environment fo describing algorithms.
+% You can use the algorithmic environment in-text or within a figure
+% environment to provide for a floating algorithm. Do NOT use the algorithm
+% floating environment provided by algorithm.sty (by the same authors) or
+% algorithm2e.sty (by Christophe Fiorio) as the IEEE does not use dedicated
+% algorithm float types and packages that provide these will not provide
+% correct IEEE style captions. The latest version and documentation of
+% algorithmic.sty can be obtained at:
+% http://www.ctan.org/pkg/algorithms
+% Also of interest may be the (relatively newer and more customizable)
+% algorithmicx.sty package by Szasz Janos:
+% http://www.ctan.org/pkg/algorithmicx
+
+
+
+
+% *** ALIGNMENT PACKAGES ***
+%
+%\usepackage{array}
+% Frank Mittelbach's and David Carlisle's array.sty patches and improves
+% the standard LaTeX2e array and tabular environments to provide better
+% appearance and additional user controls. As the default LaTeX2e table
+% generation code is lacking to the point of almost being broken with
+% respect to the quality of the end results, all users are strongly
+% advised to use an enhanced (at the very least that provided by array.sty)
+% set of table tools. array.sty is already installed on most systems. The
+% latest version and documentation can be obtained at:
+% http://www.ctan.org/pkg/array
+
+
+% IEEEtran contains the IEEEeqnarray family of commands that can be used to
+% generate multiline equations as well as matrices, tables, etc., of high
+% quality.
+
+
+
+
+% *** SUBFIGURE PACKAGES ***
+\ifCLASSOPTIONcompsoc
+  \usepackage[caption=false,font=footnotesize,labelfont=sf,textfont=sf]{subfig}
+\else
+  \usepackage[caption=false,font=footnotesize]{subfig}
+\fi
+% subfig.sty, written by Steven Douglas Cochran, is the modern replacement
+% for subfigure.sty, the latter of which is no longer maintained and is
+% incompatible with some LaTeX packages including fixltx2e. However,
+% subfig.sty requires and automatically loads Axel Sommerfeldt's caption.sty
+% which will override IEEEtran.cls' handling of captions and this will result
+% in non-IEEE style figure/table captions. To prevent this problem, be sure
+% and invoke subfig.sty's "caption=false" package option (available since
+% subfig.sty version 1.3, 2005/06/28) as this is will preserve IEEEtran.cls
+% handling of captions.
+% Note that the Computer Society format requires a sans serif font rather
+% than the serif font used in traditional IEEE formatting and thus the need
+% to invoke different subfig.sty package options depending on whether
+% compsoc mode has been enabled.
+%
+% The latest version and documentation of subfig.sty can be obtained at:
+% http://www.ctan.org/pkg/subfig
+
+
+
+
+% *** FLOAT PACKAGES ***
+%
+%\usepackage{fixltx2e}
+% fixltx2e, the successor to the earlier fix2col.sty, was written by
+% Frank Mittelbach and David Carlisle. This package corrects a few problems
+% in the LaTeX2e kernel, the most notable of which is that in current
+% LaTeX2e releases, the ordering of single and double column floats is not
+% guaranteed to be preserved. Thus, an unpatched LaTeX2e can allow a
+% single column figure to be placed prior to an earlier double column
+% figure.
+% Be aware that LaTeX2e kernels dated 2015 and later have fixltx2e.sty's
+% corrections already built into the system in which case a warning will
+% be issued if an attempt is made to load fixltx2e.sty as it is no longer
+% needed.
+% The latest version and documentation can be found at:
+% http://www.ctan.org/pkg/fixltx2e
+
+
+%\usepackage{stfloats}
+% stfloats.sty was written by Sigitas Tolusis. This package gives LaTeX2e
+% the ability to do double column floats at the bottom of the page as well
+% as the top. (e.g., "\begin{figure*}[!b]" is not normally possible in
+% LaTeX2e). It also provides a command:
+%\fnbelowfloat
+% to enable the placement of footnotes below bottom floats (the standard
+% LaTeX2e kernel puts them above bottom floats). This is an invasive package
+% which rewrites many portions of the LaTeX2e float routines. It may not work
+% with other packages that modify the LaTeX2e float routines. The latest
+% version and documentation can be obtained at:
+% http://www.ctan.org/pkg/stfloats
+% Do not use the stfloats baselinefloat ability as the IEEE does not allow
+% \baselineskip to stretch. Authors submitting work to the IEEE should note
+% that the IEEE rarely uses double column equations and that authors should try
+% to avoid such use. Do not be tempted to use the cuted.sty or midfloat.sty
+% packages (also by Sigitas Tolusis) as the IEEE does not format its papers in
+% such ways.
+% Do not attempt to use stfloats with fixltx2e as they are incompatible.
+% Instead, use Morten Hogholm'a dblfloatfix which combines the features
+% of both fixltx2e and stfloats:
+%
+% \usepackage{dblfloatfix}
+% The latest version can be found at:
+% http://www.ctan.org/pkg/dblfloatfix
+
+
+
+
+% *** PDF, URL AND HYPERLINK PACKAGES ***
+%
+\usepackage{hyperref}
+\usepackage{url}
+%\usepackage{biblatex}
+\usepackage{booktabs}
+% url.sty was written by Donald Arseneau. It provides better support for
+% handling and breaking URLs. url.sty is already installed on most LaTeX
+% systems. The latest version and documentation can be obtained at:
+% http://www.ctan.org/pkg/url
+% Basically, \url{my_url_here}.
+\renewcommand{\sectionautorefname}{Section}
+\renewcommand{\subsectionautorefname}{Section}
+\renewcommand{\subsubsectionautorefname}{Section}
+
+
+
+% *** Do not adjust lengths that control margins, column widths, etc. ***
+% *** Do not use packages that alter fonts (such as pslatex).         ***
+% There should be no need to do such things with IEEEtran.cls V1.6 and later.
+% (Unless specifically asked to do so by the journal or conference you plan
+% to submit to, of course. )
+
+
+% correct bad hyphenation here
+\hyphenation{op-tical net-works semi-conduc-tor}
+
+%\newcommand{\el}[1]{^{[#1]}}
+\newcommand{\el}[1]{_{#1}}
+
+\begin{document}
+%
+% paper title
+% Titles are generally capitalized except for words such as a, an, and, as,
+% at, but, by, for, in, nor, of, on, or, the, to and up, which are usually
+% not capitalized unless they are the first or last word of the title.
+% Linebreaks \\ can be used within to get better formatting as desired.
+% Do not put math or special symbols in the title.
+\title{Deep forests with tree-embeddings and label imputation for weak-label learning}
+
+
+% author names and affiliations
+% use a multiple column layout for up to three different
+% affiliations
+%\author{\IEEEauthorblockN{Anonymous Authors}}
+% \author{\IEEEauthorblockN{Pedro!}
+% \IEEEauthorblockA{School of Electrical and\\Computer Engineering\\
+% Georgia Institute of Technology\\
+% Atlanta, Georgia 30332--0250\\
+% Email: http://www.michaelshell.org/contact.html} 
+% \and
+% \IEEEauthorblockN{Ricardo Cerri}
+% \IEEEauthorblockA{Twentieth Century Fox\\
+% Springfield, USA\\
+% Email: homer@thesimpsons.com}
+% \and
+% \IEEEauthorblockN{James Kirk\\ and Montgomery Scott}
+% \IEEEauthorblockN{Starfleet Academy\\
+% San Francisco, California 96678-2391\\
+% Telephone: (800) 555--1212\\
+% Fax: (888) 555--1212}
+% \IEEEauthorblockA{Twentieth Century Fox\\
+% Springfield, USA\\
+% Email: homer@thesimpsons.com}
+% \and
+% \IEEEauthorblockN{James Kirk\\ and Montgomery Scott}
+% \IEEEauthorblockN{Starfleet Academy\\
+% San Francisco, California 96678-2391\\
+% Telephone: (800) 555--1212\\
+% Fax: (888) 555--1212}
+% }
+% conference papers do not typically use \thanks and this command
+% is locked out in conference mode. If really needed, such as for
+% the acknowledgment of grants, issue a \IEEEoverridecommandlockouts
+% after \documentclass
+
+% for over three affiliations, or if they all won't fit within the width
+% of the page (and note that there is less available width in this regard for
+% compsoc conferences compared to traditional conferences), use this
+% alternative format:
+% 
+\author{\IEEEauthorblockN{Pedro Ilidio\IEEEauthorrefmark{1},
+Ricardo Cerri\IEEEauthorrefmark{2}, 
+Celine Vens\IEEEauthorrefmark{3}\IEEEauthorrefmark{4},
+Felipe Kenji Nakano\IEEEauthorrefmark{3}\IEEEauthorrefmark{4}
+}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}Instituto de Física de São Carlos, Universidade de São Paulo, São Carlos, São Paulo, Brazil \\}
+\IEEEauthorblockA{\IEEEauthorrefmark{2} Instituto de Ciências Matemáticas e de Computação, Universidade de São Paulo, São Carlos, SP, Brazil\\
+}
+\IEEEauthorblockA{\IEEEauthorrefmark{3} KU Leuven, Campus KULAK, Dept. of Public Health and Primary Care, Kortrijk, Belgium \\
+}
+\IEEEauthorblockA{\IEEEauthorrefmark{4} Itec, imec research group at KU Leuven, Kortrijk, Belgium }
+Email: ilidio@alumni.usp.br, cerri@icmc.usp.br, celine.vens@kuleuven.be and felipekenji.nakano@kuleuven.be
+}
+
+
+
+
+% use for special paper notices
+%\IEEEspecialpapernotice{(Invited Paper)}
+
+
+
+
+% make the title area
+\maketitle
+% \begin{abstract}
+% Due to recent technological advances, a massive amount of data is generated on a daily basis. Unfortunately, this is not always beneficial as such data may present weak-supervision, meaning that the output space can be incomplete, inexact, and inaccurate. This kind of problems is investigated in weakly-supervised learning. In this work, we explore weak-label learning, a structured output prediction task for weakly-supervised problems where positive annotations are reliable, whereas negatives are missing.
+% %More specifically,
+% %We propose a deep forest method for weak-label learning with four possible
+% %%where different feature augmentation and label imputation procedures are employed. In particular, we employ tree-embeddings, a feature representation based on structure of the trees, for feature augmentation, whereas
+% For the first time in this class of problems, we investigate deep forest algorithms based on tree-embeddings, a recently proposed feature representation strategy leveraging the structure of decision trees. 
+% %
+% Furthermore, we propose two new procedures for label-imputation in each layer, named Strict Label Complement (SLC), which provides fixed conservative estimates for the number of missing labels and employs them to restrict imputations, and Fluid Label Addition (FLA), which performs such estimations on every layer and uses them to adjust the imputer's predicted probabilities without any restrictions.
+% %
+% We combine the new approaches with deep forest architectures to produce four new algorithms: SLCForest and FLAForest, using output space feature augmentation, and also the cascade forest embedders CaFE-SLC and CaFE-FLA, employing both tree-embeddings and the output space.
+% %We propose four new approaches to weak-label learning: SLCForest and FLAForest, applying two novel strategies for label imputation, and also CaFE-SLC and CaFE-FLA, that combine these strategies with tree-embeddings for feature augmentation.
+% %Our results reveal that our proposed method is superior or competitive to the current state-of-the-art. 
+% %Our results 
+% Our results reveal that our methods provide superior or competitive performance to the state-of-the-art. Furthermore, we also noticed that our methods are associated with better results even in cases without weak-supervision.
+% 
+% %suggesting cascade forest embedders with label imputation as a promising method for future investigation.
+% %paving the way for further research in sophisticated tree-based deep learning.
+% \end{abstract}
+
+% As a general rule, do not put math, special symbols or citations
+% in the abstract
+\begin{abstract}
+Due to recent technological advances, a massive amount of data is generated on a daily basis. Unfortunately, this is not always beneficial as such data may present weak-supervision, meaning that the output space can be incomplete, inexact, and inaccurate. This kind of problems is investigated in weakly-supervised learning. In this work, we explore weak-label learning, a structured output prediction task for weakly-supervised problems where positive annotations are reliable, whereas negatives are missing.
+For the first time in this class of problems, we investigate deep forest algorithms based on tree-embeddings, a recently proposed feature representation strategy leveraging the structure of decision trees. 
+Furthermore, we propose two new procedures for label-imputation in each layer, named Strict Label Complement (SLC), which provides fixed conservative estimates for the number of missing labels and employs them to restrict imputations, and Fluid Label Addition (FLA), which performs such estimations on every layer and uses them to adjust the imputer's predicted probabilities without any restrictions.
+We combine the new approaches with deep forest architectures to produce four new algorithms: SLCForest and FLAForest, using output space feature augmentation, and also the cascade forest embedders CaFE-SLC and CaFE-FLA, employing both tree-embeddings and the output space.
+Our results reveal that our methods provide superior or competitive performance to the state-of-the-art. Furthermore, we also noticed that our methods are associated with better results even in cases without weak-supervision.
+\end{abstract}
+
+% no keywords
+
+
+
+
+% For peer review papers, you can put extra information on the cover
+% page as needed:
+% \ifCLASSOPTIONpeerreview
+% \begin{center} \bfseries EDICS Category: 3-BBND \end{center}
+% \fi
+%
+% For peerreview papers, this IEEEtran command inserts a page break and
+% creates the second title. It will be ignored for other modes.
+\IEEEpeerreviewmaketitle
+
+
+
+\section{Introduction}
+
+In recent years, we have seen the rise of deep learning as the predominant solution for problems with unstructured data. That is, problems where data is presented in a raw format, such as images, videos and audio. However, when it comes to tabular (structured) data, variants of tree-ensemble methods are the current state-of-the-art~\cite{grinsztajn2022tree}.
+
+In this regard, deep forests have recently been proposed as a powerful, efficient, and light-weighted solution~\cite{zhou2019deep}. Similarly to their neural network counterpart, deep forests are composed by several layers where the input features are sequentially augmented using the output of previous layers. In this case, however, layers are composed of tree-ensembles.
+
+Originally, deep forests employed the output space features (predicted probabilities) as augmented features for the next layers, in a similar fashion to classifier chains~\cite{read2021classifier}. Despite achieving remarkable performance, recent work~\cite{nakano2022deep} has shown that replacing output space features by tree-embeddings, a feature transformation based on the structure of the trees, is more informative, especially regarding structured output prediction.   
+
+As defined in~\cite{xu2019survey, waegeman2019multi}, structured output prediction is a field where multiple outputs, which are correlated to each other, must be predicted. In this domain, the veracity of the data is an important challenge, since datasets present imperfect data in their output space~\cite{xu2019survey}, which requires specific methods. This type of problems is investigated in the field of weakly-supervised learning~\cite{zhou2018brief}.
+
+As its name suggests, weakly-supervised learning is an umbrella term for problems with weak-supervision. Such weak-supervision can be presented in three forms and combinations thereof: i) incomplete supervision, where only a subset of the annotations is given; ii) inexact, where annotations are given on a coarse-grained level; and iii) inaccurate supervision, where annotations are not completely reliable.
+
+In this work, we investigate weak-label learning, a weakly supervised learning task where datasets are presented with missing annotations. More precisely, positive annotations are reliable, whereas negative ones may either be real negatives or missing positives. Thus, weak-label learning methods can impute missing positive annotations (change negative annotations into positives), generating a new imputed dataset. This imputation can either be performed as a pre-processing step and be given as input to a multi-label method~\cite{sun2010multi}, or occur during the construction of the predictive model~\cite{wang2020learning}.    
+
+%The current state-of-the-art in tabular weak-label learning, LCForest~\cite{wang2020learning}, employs output space features for feature augmentation and an internal cross-validation procedure to impute missing annotations, which relies on a fixed classification threshold value of 50\% to impute. Furthermore, it employs a label imputation procedure adapted from positive unlabeled learning~\cite{bekker2018estimating}, which often extrapolates the number of missing positives to be imputed.
+The current state-of-the-art in tabular weak-label learning, LCForest~\cite{wang2020learning}, employs output space features for feature augmentation and an internal cross-validation procedure to impute missing positive annotations, which relies on a fixed classification threshold to impute. It also employs a label frequency estimation procedure adapted from positive unlabeled learning~\cite{bekker2018estimating}, which often overestimates the number of missing positive annotations to be imputed. Furthermore, LCForest allows the estimated bounds for the imputation to be surpassed, resulting in excessive imputation. Lastly, the proposed early-stopping mechanism is often ineffective, since it can be overly strict.
+
+%We have identified several points for improvement: i) output space features, as showcased in recent work \cite{nakano2022deep}, tree-embeddings can be more representative; ii) fixed threshold value (50\%) for every label, as often mentioned in literature \cite{xu2019survey}, datasets are highly imbalanced in this context, which requires a dynamic threshold per label; iii) lenient label imputation procedure, where the number of missing annotations is often extrapolated, resulting into exaggerated imputation and consequently many wrong new positive annotations; iv) further validation, since LCForest was validated using only 4 datasets; 
+
+In order to address these drawbacks, we propose a novel deep-forest method for weak-label learning that combines tree-embeddings (TEs) and output space features (OS) for feature augmentation, with two novel label imputation procedures, strict label complement (SLC) and fluid label addition (FLA). More specifically, SLC implements new more restrictive imputation upper bounds, while FLA controls imputation by adjusting its imputation threshold according to estimates of the amount of missing data.
+%
+Altogether, we propose four new variants of our method. SLCForest and FLAForest implement the new imputation strategies and a recently-proposed post-pruning scheme~\cite{nakano2022deep}, which we further refine with out-of-bag internal performance estimates. CaFE-SLC and CaFE-FLA additionally employ tree-embedding feature augmentation approaches introduced in recent studies~\cite{nakano2022deep}.
+
+%Our results reveal that: short enumeration of results, best results? tree-embeddings are better than output space features? in some situations with a lot of missing labels, its still to hard?
+Our results showcase superior or competitive performance when compared to state-of-the-art approaches. While metrics based on the binary outputs greatly favor the tree-embedding-based CaFE-SLC and CaFE-FLA, SLCForest is confidently shown to outperform its predecessor LCForest \cite{wang2020learning} when label ranking is evaluated in multiple ways, being the overall best-placed model for probability-based metrics under moderate amounts of missing positive annotations.
+
+The remainder of this paper is organized as follows. \autoref{sec:background} provides an overview of current strategies involving deep forest models and weak-label scenarios. \autoref{sec:methods} provides a detailed presentation of our newly developed methods. The datasets we utilize, evaluation procedure, and hyperparameter configurations are described in \autoref{sec:experiments}. The discussion around our obtained results are organized in \autoref{sec:results}, while \autoref{sec:conclusion} presents our final remarks and concludes our work. 
+
+%Here, we focus on weak-label learning, a weakly supervised learning problem where instances can be associated to multiple labels simultaneously, nonetheless it is only partially presented. For instance, EXAMPLE.
+
+%Formally, weak-label learning is given as.... FORMAL DEFINITION
+
+%Very freque
+\section{Background and Related work}
+\label{sec:background}
+In this section, we present the background and related work. Initially, we present deep forests and their main components, followed by recent deep forest-based methods. Further, we present weak-label learning, deep forest methods for weak-label learning, and the current state-of-the-art~of~the~field.
+
+\subsection{Deep forests}
+\label{sec:deep forests}
+
+%Deep forest algorithms aim to enhance an estimator performance by serially building multiple instances of a model in such a way that each estimator can learn from the outputs of its predecessor besides the initial input features.
+%
+%The string of estimators thus forms what is called a \emph{cascade} structure, where the internal models act as consecutive learned transformations of the data and a final estimator wraps the augmented dataset into final predictions. Each \emph{level} $l$ of the cascade (also called a \emph{layer}) thus applies a transformation denoted $F_l$, with all levels deriving from the same learning algorithm. The cascade ensemble as a whole is then called a \emph{deep forest} when the algorithms of choice for internal transformations and the prediction head constitute decision forest learners.
+
+%Although each transformation was originally formulated as introducing the predictive outputs of a model to the next layer's training set, there have been recent proposals to extend the feature augmentation process to encompass a broader category of tree-embeddings in deep forests~\cite{nakano2022deep}. Furthermore, processing not only the training features $X$ but also the label matrix $Y$ has been explored as a promising strategy to approach weak-supervision tasks~\cite{wang2020learning}.
+%
+Similarly to deep neural networks, deep-forests are models composed of several layers, where input features are sequentially augmented using the output of previous layers until convergence is reached. In this case, layers consist of tree ensembles. The resulting method is a \emph{cascade} structure, where the internal models act as consecutive transformations of the data and a final layer wraps the augmented dataset into final predictions. Deep forests are composed of three main components: 
+\begin{enumerate}
+    \item \textbf{Layer structure:}  Tree-ensembles built for prediction in each layer. For instance, the original deep-forest (gcForest)~\cite{zhou2019deep} employed 2 random forests (RFs)~\cite{breiman2001random} and 2 randomized trees (ETs) per layer~\cite{geurts2006extremely}; 
+
+    \item \textbf{Feature augmentation:} the feature transformation procedure used in each layer. The majority of the literature relies on variants of prediction probabilities, similar to classifier chains~\cite{read2021classifier}. Alternatively, recent work on structured output prediction has shown that tree-embeddings~\cite{nakano2022deep}, features based on the structure of the trees, can be more representative. Furthermore, overfitting prevention methods are often employed, such as using separate models to generate augmented features~\cite{nakano2022deep,wang2020learning} or  
+    \textit{crossing-over} where the augmented features generated using one ensemble are used as input to others in the next layer, e.g, assuming a RF and an ET per layer, the augmented features generated using the RF would be used as input for the ET in the next layer;
+
+    \item \textbf{Length control:} A criterion to define the optimal number of layers in the method.
+\end{enumerate}
+
+%More specifically, in each layer, three procedures are necessary: i) generate new features using the augmented features from the previous layer or the original input space; ii) concatenate the newly generated features with the original input space to generate augmented features; iii) propagation forward of this concatenation to the next layer
+
+More specifically, in each layer, feature augmentation is performed using the original features or the augmented features from the previous layer. Thus, new features are generated and concatenated with the original features, resulting into new augmented features. The newly generated augmented features are then used by the tree-ensembles in the layer structure to build predictive models, and are propagated forward to the next layer. This procedure is repeated until the length control procedure is activated. 
+
+
+% Formally, feature augmentation and obtaining prediction from deep-forests are described in Equations \ref{eq:cascade x} and \ref{eq:cascade head}, respectively.  
+
+% \begin{equation}
+%     X_{l+1,t} = \texttt{hstack}(\{X_0\} \cup \{F_{l, t'}(X_{l, t'})\;\forall \;t' \neq t\})
+%     \label{eq:cascade x}
+% \end{equation}
+
+% In Equation \ref{eq:cascade x}, the $t$-th transformation of level $l$ is denoted by $F_{l, t}$, the original input space by $X_0$, the horizontal concatenation of all matrices in a set $\mathbf{M}$ by $\texttt{hstack}(\mathbf{M})$ and the input features of the transformation $F_{l, t}$ by $X_{l, t}$. 
+
+% Mind that, several transformations might be used concomitantly. Further, $F_{l, t}$ is specific to the underlying model and to the type of features, e.g., output space features generated using a RF is different than output space features generated using a ET. Hence, if the aforementioned overfitting prevention strategy \textit{crossing-over} is used, $F_{l, t}$ would not receive as input its own output from the last level, $F_{l-1, t}$.
+
+% The final predictions $\tilde Y$ are computed by a prediction head $H$ receiving all the data from the last transformation and the original features, as shown in Equation \ref{eq:cascade head} where $L$ is the index of the last cascade level. 
+% %
+% \begin{equation}
+%     \tilde Y = H(\texttt{hstack}(\{X_0\} \cup \{F_{L, t}(X_{L, t})\;\forall \;t\}))
+%     \label{eq:cascade head}
+% \end{equation}
+%
+
+%The specific methods we analyse to perform the transformations are presented by \autoref{sec:}.
+% TODO refer to figure (X is blue)
+
+
+
+% We thus list three key components of a general deep forest algorithm, to be further discussed in the next sections.
+% %
+% \begin{enumerate}
+%     \item \textit{Feature augmentation:} How to generate new feature columns throughout the cascade (processing $X$).
+%     \item \textit{Label modification:} How the label matrix is processed in each level (processing $Y$).
+%     \item \textit{Length control:} Post-pruning or early-stopping criteria to determine the number of layers.
+% \end{enumerate}
+
+%\subsubsection{Deep-forest methods}
+\autoref{tab:dfmethods} presents recent work on deep-forest methods. As can be seen, most of the studies employ the same components as the original deep-forest~\cite{zhou2019deep}. That is, two RFs and two ETs for the layer structure, output space (OS) for feature augmentation, and first drop in score for length control. Furthermore, it is noticeable that most of the studies focus on single-output problems, such as binary and multi-class classification. Lastly, the work of Nakano et al.~\cite{nakano2022deep} is the only one that employed tree-embeddings.  
+
+\begin{table*}[htbp]
+\scriptsize
+\begin{tabular}{lccccc}
+\toprule
+Algorithm                                     & Layer structure & Feature augmentation & Length control                        & Task                                                                                              & Application      \\ \midrule
+gcForest \cite{zhou2019deep} & 2 RFs - 2ETs    & OS                   & First score drop                      & Binary and multi-class classification                                                             & -                \\
+MLDF                     \cite{yang2019multi}                     & 1 RF - 1 ET     & OS                   & Training score tolerance  3 iterations & Multi-label classification                                                                        & -                \\
+IMDF                                          & Adaboost        & OS                   & First score drop                      & (Imbalanced) Binary classification                                                                & -                \\
+Deep-Resp-Forest  \cite{su2019deep}                            & 2 RFs - 2ETs    & OS                   & First score drop                      & Binary classification                                                                             & Drug response    \\
+CSDF \cite{ma2020cost}                                         & 2 RFs - 2ETs    & OS                   & Maximum number of iterations          & Multi-class classification                                                                        & Price prediction \\
+DFH    \cite{zhou2019hashing}                                       & 2 RFs - 2ETs    & OS                   & First score drop                      & Hashing learning                                                                                  & -                \\
+SDF \cite{utkin2018siamese}                                           & 2 RFs - 2ETs    & OS                   & Maximum number of iterations          & Multi-class classification                                                                        & -                \\
+BCDForest \cite{guo2018bcdforest}                                     & 2 RFs - 2ETs    & OS                   & First score drop                      & Multi-class classification                                                                        & Cancer subtype   \\
+Deep tree ensembles \cite{nakano2022deep}                           & 1 RF - 1 ET     & TE                   & Best training score                   & \begin{tabular}[c]{@{}c@{}}Multi-label classification \\ and multi-target regression\end{tabular} & -   \\ \bottomrule   \\       
+\end{tabular}
+\caption{Recent literature on deep forest methods.}
+\label{tab:dfmethods}
+\end{table*}
+
+\subsection{Weak-label learning}
+
+%Weak-label learning is defined as follows. Given an input space $\mathbb{X} = \mathbb{R}^d$ of $d$ dimensions and an output space, $\mathbb{Y} = \{y_1,y_2,y_3,\cdots,y_p\}$, with $p$ labels, a weak-label dataset of $m$ instances consists of $\{(\textbf{x}_i,Y_i | 1 \leq i \leq m)\}$ where $\textbf{x}_i \in \mathbb{X}$ is a $d$ dimensional vector representing the features [$x_{i1},x_{i2}, \cdots, x_{id}$] and $\mathbf{y}_i \subset \mathbb{Y}$ is the associated vector of labels where $\mathbf{y}_i$ is partially provided in the sense that $Y_{ik} = 1 $ corresponds to the ground truth, nonetheless $Y_{ik} = 0 $ can represent both a real negative or a missing positive annotation. The objective is to find a function $f: \mathbb{X} \rightarrow 2^{\mathbb{Y}}$. 
+
+Weak-label learning is defined as follows. Given an input space $\mathbb{X} = \mathbb{R}^d$ of $d$ dimensions and an output space $\mathbb{Y} = \{0, 1\}^p$ with $p$ dimensions, a weak-label dataset of $m$ instances consists of
+$\{(\textbf{x}_i,\textbf{y}_i | 1 \leq i \leq m)\}$, also organized into matrices $X = (x_{ij})$ and $Y=(y_{ij})$.
+$\textbf{x}_i \in \mathbb{X}$ is a $d$ dimensional vector representing the features $\begin{bmatrix} x_{i1} & x_{i2} & \cdots & x_{id}\end{bmatrix}$ and $\mathbf{y}_i \in \mathbb{Y}$ is the associated vector of labels $\begin{bmatrix} y_{i1} & y_{i2} & \cdots & y_{ip} \end{bmatrix}$ where $\mathbf{y}_i$ is partially provided in the sense that $y_{ij} = 1 $ corresponds to the ground truth, nonetheless $y_{ij} = 0 $ can represent both a real negative or a missing positive annotation. The objective is to find a function $f: \mathbb{X} \rightarrow \mathbb{Y}$. 
+%We concentrate on scenarios of tabular multi-label data, where the main objective is to model a function taking a vector of $n$ numerical features $\mathbf{x} \in \mathbb{R}^n$ and returning a vector of $m$ binary labels $\mathbf{y} \in \{0, 1\}^m$.
+%We concentrate on scenarios of tabular multi-label data, where the main objective is to model a function taking a vector of numerical features $\mathbf{x} \in \mathbb{R}^n$ and returning a vector of binary labels $\mathbf{y} \in \{0, 1\}^m$.
+
+Assuming an optimistic scenario, where very few positive annotations are missing, weak-label learning could be addressed using traditional multi-label classification, nonetheless, these methods often underperform in realistic scenarios, as the noise is overlooked. 
+
+To overcome this challenge, initial works on weak-label learning followed a transductive approach where missing positive annotations are imputed using low-rank matrix composition methods~\cite{sun2010multi, xu2013speedup}. More recent methods, however, have adopted a predictive approach~\cite{wang2020dual}.
+
+Weak-label learning is closely related to semi-supervised multi-label classification, where instances may present an entire empty label set~\cite{zhan2017inductive}. Further, positive unlabeled learning~\cite{bekker2020learning} is also similar since negative annotations are also unreliable. The main difference relies on the number of labels since positive unlabeled learning focuses on single output problems. Lastly, partial (multi)-label learning addresses problems where positive annotations are unreliable~\cite{xie2018partial}. 
+
+\subsection{Deep-forest methods for weak-label learning}
+
+
+
+%\subsubsection{Feature augmentation}
+
+%Commonly, a composition of learned transformations is employed in each level, so that the $t$-th transformation of level $l$ is denoted by $F_{l, t}$. As an overfitting prevention strategy, \cite{nakano2022deep} introduces the crossing-over technique, that we define in a more general fashion as enforcing that each transformation $F_{l, t}$ in a level does not receive as input its own results from the last level, $F_{l-1, t}$. If we represent the horizontal concatenation of all matrices in a set $\mathbf{M}$ as $\texttt{hstack}(\mathbf{M})$, the input features of the transformation $F_{l, t}$, denoted $X_{l, t}$ thus follows \autoref{eq:cascade x}.
+% explanation for crossing-over: is difficult to mimic the structure of a different type of forest
+%
+%\begin{equation}
+ %   X_{l+1,t} = \texttt{hstack}(\{X_0\} \cup \{F_{l, t'}(X_{l, t'})\;\forall \;t' \neq t\})
+  %  \label{eq:cascade x}
+%\end{equation}
+%
+%All transformations of the first level receive the original data $X_0$, i.e. $X_{0,t} = X_0 \;\forall\; t$, and the final label probabilities in $\tilde Y$ are computed by a prediction head $H$ receiving all the data from the last transformation 
+% and the original features (\autoref{eq:cascade pred}).
+%
+%\begin{equation}
+  %  \tilde Y = H(\texttt{hstack}(\{X_0\} \cup \{F_{L, t}(X_{L, t})\;\forall \;t\}))
+ %   \label{eq:cascade head}
+%\end{equation}
+%
+%in which $L$ is the index of the last cascade level. The specific methods we analyse to perform the transformations are presented by \autoref{sec:}.
+% TODO refer to figure (X is blue)
+
+Besides the three components mentioned in \autoref{sec:deep forests}, layer structure, feature augmentation, and length control, deep forests for weak-label learning also employ a fourth component, namely label imputation. 
+
+\subsubsection{Label imputation}
+%\subsubsection{Label modification}
+\label{sec:imputation}
+
+As its name suggests, the component label imputation is responsible for imputing missing annotations at each layer of the deep forest. Formally, we describe this component in \autoref{eq:imputation} where $Y^{l+1}$ is the output matrix used for the next layer, $Y^0$ is the original output matrix and $\hat Y^l$ is the output imputed matrix of a particular layer $l$. $\vee$ denotes the element-wise OR operation.
+%
+% To address the problem of weak supervision, a possible strategy is to transform not only the feature matrix $X$ along the deep forest levels but also the label matrix $Y$, accounting for the uncertainty in the underlying labeling procedure. Although the same transformer forests in each level could be applied for this task, using the the same models for feature generation and label imputing would likely result in trivial correlations between the new features and the new labels, making downstream estimators prone to overfitting. We thus consider the case in which a separate imputer model is built in each layer $l$, using the layer's outputted features to produce label probabilities $\tilde Y_l$ determining the training labels of the next level according to \autoref{eq:imputation}.
+%
+%
+\begin{equation}
+    % Y^{l+1} = Y^0 \cup \hat Y^l
+    Y^{l+1} = Y^0 \vee \hat Y^l
+    \label{eq:imputation}
+\end{equation}
+%
+% \begin{equation}
+%     Y_{l+1} = Y_0 \vee (\tilde Y_l > \theta_l)
+%     \label{eq:imputation}
+% \end{equation}
+%
+%$\theta_l$ is a level-wise parameter defining the classification threshold and $Y_0$ denotes the original training labels.
+
+Notice that the modified label matrix $Y^l$ used as input for the forests at level $l$ is directly dependent only on the original annotations $Y^0$ and the last layer's imputation. That is, imputed annotations are not cumulative throughout the levels. %Furthermore, only imputed can be removed by a subsequent level, with the original occurrences in $Y_0$ being kept for the entire training process as a consequence of the positive-unlabeled assumption about the problems at hand. 
+
+
+\subsubsection{LCForest}
+\label{sec:lc}
+
+The current state-of-the-art in weak-label learning, LCForest~\cite{wang2020learning}, employs the following components: one RF and one ET for layer structure and output space features for feature augmentation.
+%These features are generated by using internal cross-validation.
+As for length control, the authors propose a label-wise upper bound $u_j$ for the number of imputed labels, which is measured using the positive unlabeled method proposed in~\cite{bekker2018estimating}. If $u_j$ is reached for all possible labels, then the training is stopped. Lastly, LCForest employs label complement (LC) as the label imputation procedure. 
+
+%LC complements the output space using a procedure based on nested cross-validation in such a way that each predicted probability is returned by the model which did not use the corresponding instance for training.
+LC imputes missing positive annotations using a procedure based on nested cross-validation in such a way that each predicted probability is returned by the model that did not use the corresponding instance for training.
+Further, the output of the ensemble is only positive if the classification threshold is satisfied by all forests, which requires unanimity instead of the usual majority voting. According to the authors, this procedure avoids overconfident estimates and consequently wrongly imputed annotations. Given an ensemble of forests in a layer $l$, \autoref{eq:lc imputation} presents the procedure to generate $\hat Y^l$ (imputed output matrix), where $\tilde Y^{l,t}$ is the predicted probabilities of forest $t$ and $\theta$ is the classification threshold. 
+%
+\begin{equation}
+    \hat Y^l = \prod_t (\tilde Y^{l, t} > \theta)
+    \label{eq:lc imputation}
+\end{equation}
+%
+To additionally prevent excessive imputation, imputation is stopped for a particular label $j$ if $u_j$ is surpassed, and the imputed entries for $j$ are kept fixed for the downstream cascade levels ~\cite{wang2020learning}. 
+
+Despite its proven effectiveness, we identify three key limitations of the original LCForest algorithm:
+%
+\begin{enumerate}
+    \item \textbf{Overshooting:} the number of imputed labels is allowed to exceed $u_j$ before imputation is stopped. The imputer annotates all predicted labels that cross the classification threshold, tests if $u_j$ has been surpassed and stops the imputation if so, keeping the excessive imputations;
+    \item \textbf{$u_j$ overestimation:} the original estimation technique is biased towards larger values of $u_j$, especially with the default parameters, as their authors report~\cite{bekker2018estimating};% The technique was not initially considered with imputation in mind.
+    \item \textbf{Insufficient stopping criterion}: the stopping criterion is rarely met and cascades tend to overgrow. This is partially a consequence of item 2.
+\end{enumerate}
+%
+%We describe our approach to address these limitations in \autoref{sec:slc}.
+%\cite{wang2020learning} proposes label complement (LC), a label imputation procedure based on nested cross-validation in such a way that each predicted probability is returned by the model which did not use the corresponding instance for training. Further, the output of the ensemble is only positive, if the classification threshold must be satisfied by all forests, requiring unanimity instead of the usual majority voting. According to the authors, this procedure avoids overconfident estimates and consequently wrongly imputed annotations. The Equation \ref{eq:imputation} presents LC where $\tilde Y_l$ is the prediction probabilities obtained using LC and $\theta_l$ is a level-wise parameter defining the classification threshold. 
+
+
+%scheme to avoid overconfident estimates when obtaining the probabilities $\tilde Y_l$ in \autoref{eq:imputation}, in such a way that each predicted probability is returned by the model which did not use the corresponding instance for training. Furthermore, an ensemble of forests is used in each fold, and, for the output of the ensemble to be positive, the classification threshold must be satisfied by all forests, requiring unanimity instead of the usual majority voting. The threshold itself, however is set to 0.4 by the authors, counter-balancing their strict unanimity criteria.
+
+
+
+%To additionally prevent excessive imputation, the authors employ the Tree Induction for Label Frequency Estimation (TIcE) technique to estimate a label-wise upper bound for the number of missing occurrences. If this upper bound is crossed for a given label in a given layer, imputation is stopped for that label and the imputed entries are kept for the downstream cascade levels. As a newly proposed stopping criterion, if all labels reach their respective upper bounds, no more levels are added~\cite{wang2020learning}.
+
+%\cite{wang2020learning} proposes a cross-validation scheme to avoid overconfident estimates when obtaining the probabilities $\tilde Y_l$ in \autoref{eq:imputation}, in such a way that each predicted probability is returned by the model which did not use the corresponding instance for training. Furthermore, an ensemble of forests is used in each fold, and, for the output of the ensemble to be positive, the classification threshold must be satisfied by all forests, requiring unanimity instead of the usual majority voting. The threshold itself, however is set to 0.4 by the authors, counter-balancing their strict unanimity criteria.
+ 
+%To additionally prevent excessive imputation, the authors employ the Tree Induction for Label Frequency Estimation (TIcE) technique to estimate a label-wise upper bound for the number of missing occurrences. If this upper bound is crossed for a given label in a given layer, imputation is stopped for that label and the imputed entries are kept for the downstream cascade levels. As a newly proposed stopping criterion, if all labels reach their respective upper bounds, no more levels are added~\cite{wang2020learning}.
+% theta options
+% PU -> c can help
+
+\section{Proposed methods}
+In this Section, we present the feature augmentation and label imputation procedures employed by our method. 
+\label{sec:methods}
+
+% In this section, we present our proposed methods. 
+
+
+
+\subsection{Feature augmentation}
+\label{sec:feature augmentation}
+
+We explore two ways of performing feature augmentation: output space features and tree-embeddings. 
+
+\subsubsection{Output space features}
+
+%to build deep forest models.
+
+Output space features (OS) correspond to employing predicted probabilities as extra features, similarly to classifier chains~\cite{read2021classifier}.
+%Despite its relative simplicity, output space features are very representative.
+
+%\textbf{Overfitting prevention:} Prediction probabilities are obtained using an internal cross-validation procedure where multiple models are built and the averaged prediction is propagated.
+
+
+
+%As aforementioned (Section \ref{sec:lc}) In the context of structured output prediction and deep-forests, OS are generated using an internal cross-fold validation procedure. This procedure, however, substantially increases the computational complexity of the deep-forest.
+
+
+%s a solution, in this work, we propose to exploit the intrinsic out-of-bag procedure from tree-ensembles. More specifically, given a particular instance $x$, we generate OS by averaging the prediction probabilities of the models that did not use such $x$ in their training. Formally, 
+
+
+
+%The original proposal by \cite{} consists of outputting as new features the probabilities of each class predicted by forest classifiers. However, further research suggests~\cite{} that more sophisticated approaches, leveraging the tree structure itself to encode each sample, could offer sensible improvements in predictive performance. In that direction, \cite{nakano2022deep} proposes utilizing \emph{tree-embeddings} for building deep forest estimators, which we now describe. %in the following session.
+
+\subsubsection{Tree-embeddings}
+
+% A trained decision tree is comprised of recursive 
+
+%Given a tree-ensemble method, tree-embeddings are generated by converting each decision into a binary vector, where each position corresponds to a node $n$. These binary vectors are further concatenated, generating a new representation $z$ whose values are set to 1 if an instance traverses it or 0, otherwise. For a given instance $x$, Equation \label{eq:tree-embedding} defines the procedure to obtain $z$. In this case, $s_n$ corresponds to the number of training instances that reach node $n$. 
+Given a tree-ensemble method, tree-embeddings are vectors $z$ in which each position $z\el{n}$ corresponds to a tree node indexed by $n$, for all nodes in all the decision trees of an ensemble.
+%
+For a given instance $x$ that traverses the tree, \autoref{eq:tree-embedding} defines how to obtain $z$. In this case, $s_n$ corresponds to the number of training instances that reach node $n$. 
+%The nodes are organized in a hierarchical binary tree structure, so that each outcome of a node's test leads to one of its children. Using all nodes in all trees of a forest, we define the tree-embedding $z$ of an input sample $x$ as in \autoref{eq:tree-embedding}, in which $s_n$ designates the number of training instances that reach the node $n$.
+
+
+%Each node $n$ of a decision tree encompasses a boolean test in the format $x\el{j_n} > \tau_n$, so that the values of $j_n$ and $\tau_n$ are parameters of the node. The nodes are organized in a hierarchical binary tree structure, so that each outcome of a node's test leads to one of its children. Using all nodes in all trees of a forest, we define the tree-embedding $z$ of an input sample $x$ as in \autoref{eq:tree-embedding}, in which $s_n$ designates the number of training instances that reach the node $n$.
+%
+\begin{equation}
+    z\el{n} = \begin{cases}
+        \log (s_n + 1)^{-1} & \text{if $x$ traverses $n$} \\% TODO: CHECK
+        0 & \text{otherwise.}
+    \end{cases}
+    \label{eq:tree-embedding}
+\end{equation}
+%
+Note that using all tree nodes in a forest could easily become infeasible to deal with for larger datasets. To mitigate this issue, nodes are filtered according to $s_n$ and further given as input to a dimensionality reduction method, such as PCA.
+
+% \textbf{Overfitting prevention:} The models used to generate tree-embeddings are built using only a random subset of the training instances \cite{nakano2022deep}.
+
+%Two strategies are suggested by \cite{nakano2022deep} to mitigate this issue. The first is to filter out the largest nodes from the embedding, since they often represent less informative tests close to the root of each tree. The second idea consists of selecting a subset of principal components that account for the largest portions of the explained variance, taking advantage of the natural correlations between nodes to simplify the embeddings.
+
+%TODO: our hyperparameter values
+
+%\begin{enumerate}
+%    \item \textbf{Output space:} The original proposal by \cite{} consists of outputting as new features the probabilities of each class predicted by forest classifiers.
+%    \item \textbf{Tree-embeddings:} Explored by \cite{nakano2022deep}, leverages the tree structure itself to encode sample.
+%\end{enumerate}
+
+
+
+%In its simplest form, the imputation procedure is described by \autoref{eq:simple imputation}, where $\tilde Y$ denotes estimated label probabilities and $\theta$ is a threshold value converting those probabilities to binary predictions.
+%label complement (LC) mechanism introduced by \cite{wang2020learning} consists of letting each level of the deep forest predict new training labels before they are passed along to the next level, thus accounting for the expected uncertainty in the labeling process.
+
+% \begin{enumerate}
+%     \item \textbf{LC:} Label complement mechanism as proposed by \cite{wang2020learning}.
+%     \item \textbf{SCAR:} Threshold adjustment strategy based on estimated frequency of missing labels.
+% \end{enumerate}
+
+% overfitting prevention: embeddings and imputation comming from different models
+
+\subsection{Label imputation}
+In this subsection, we present our label imputation procedures and their strategies used to estimate the label frequency.
+
+\subsubsection{Label frequency estimation from out-of-bag sets}
+\label{sec:oob c estimation}
+
+We estimate the number of positive annotations to be imputed to determine how aggressive our imputers should be.
+%
+This number of missing positive annotations for each label $j$ is encoded as the probability in \autoref{eq:c}, named $c_j$.
+%
+\begin{equation}
+    P(y_j=1 \mid y_j^\ast=1) = c_j
+    \label{eq:c}
+\end{equation}
+%
+
+This is the target quantity we set to approximate.
+%
+$y^\ast\el{j}$ denotes the true label $j$ of an instance, considering a hypothetical completely-supervised scenario, while $y\el{j}$ is the observed label in our weakly-supervised dataset.
+
+%In other words, whereas $y_j^\ast$ is the true underlying result, $y_j$ is the label provided through an imperfect labeling mechanism, such that it does not necessarily match the original $y_j^\ast$.
+%
+%
+We then use probabilities estimated by our forests to approximate $c_j$. Specifically, we first collect the out-of-bag probabilities of the forests as reasonable estimates for $P(y_j=1)$. To assure the condition $y^\ast_j=1$ in \autoref{eq:c}, we then only use the positive instances of the out-of-bag validation sets. Each predicted probability of a positive instance in the validation sets is an estimate $\tilde c_j$. We choose the final $c_j$ as a large percentile $p$ of the distribution of $\tilde c_j$ (\autoref{eq:percentile}).
+%
+\begin{equation}
+    P(\tilde c_j \le c_j) = p
+    \label{eq:percentile}
+\end{equation}
+%
+
+$c_j$ being constant results in \autoref{eq:scar}~\cite{elkan2008learning,bekker2020learning}.
+%
+\begin{equation}
+    P(y^\ast\el{j}=1) = \frac{P(y\el{j}=1)}{c\el{j}}
+    \label{eq:scar}
+\end{equation}
+%
+
+As a result, upper bounds for the number of imputed labels can be obtained as in \autoref{eq:estimated total labels}.
+%
+%
+\begin{equation}
+    u\el{j} = \left\lfloor \frac{\sum_i Y^0\el{ij}}{c\el{j}} \right\rfloor
+    \label{eq:estimated total labels}
+\end{equation}
+
+The percentile approach is performed to ensure conservative imputation, favoring lower $u_j$.
+%; ii) mitigate the effect of 
+%
+% The probabilities outputted by an estimator are approximations 
+% 
+% A general probability estimator naturally provides as 
+% 
+% Therefore, our target quantity represents the probability of indeed labeling an inherently positive instance. The reason for this being our goal is that, under specific assumptions, we can use $c_i$
+% 
+% We assume this probability $c_j$ to be a constant.
+% %, which is known as the \emph{}
+% %Weak-label circumstances, $y_j$ does not necessarily corresponds to the underlying $y_j^\ast$. Noise in 
+% 
+% Specifically, the objective of our 
+% 
+% As $c$ estimates, we use the predicted probabilities of positive labels in a validation set.
+% %The LCForest~\cite{wang2020learning} algorithm employs the tree induction for label frequency estimation (TIcE) procedure~\cite{bekker2018estimating}. The method is fundamentally conservative, being based on statistical corrections made in the direction of strictly avoiding overestimates of $c$. Especially with the default parameters, the authors report TIcE to be usually overly conservative~\cite{bekker2018estimating}.
+% %
+% %The notion of conservatism, however, shifts when the final objective of label frequency^estimation is label imputing. A lower guess for $c$, meaning a higher amount of expected missing labels, would originally be considered a moderate estimate in the sense of assuming less knowledge about the data, but, from an imputation perspective, would result in more radical modification of the training labels, thus introducing more bias to the dataset.
+% %
+% %When imputing, is thus arguably desirable to favor overestimates of $c$ instead of underestimates.
+% Let $y^\ast\el{j}$ denote the true label $j$ of an instance, considering a completely-supervised scenario, and $y\el{j}$ be the observed label, that could deviate from the original $y^\ast\el{j}$ due to a faulty labeling process in weakly-supervised contexts. Under the selected completely at random (SCAR) assumption in positive-unlabeled (PU) scenarios, the probability of indeed labeling an inherently positive instance is a constant $c\el{j} = P(y\el{j}=1 \mid y^\ast\el{j}=1)$, and \autoref{eq:scar} is held~\cite{elkan2008learning,bekker2020learning}.
+% %
+% \begin{equation}
+%     P(y^\ast\el{j}=1) = \frac{P(y\el{j}=1)}{c\el{j}}
+%     \label{eq:scar}
+% \end{equation}
+% 
+% A vector $\tilde y$ of predicted probabilities for an input $\mathbf{x}$ constitutes an approximation for the labeling probability in the training set. For the label $j$, $\tilde y\el{j} \approx P(y\el{j}^\text{train}=1\mid \mathbf{x}^\text{train})$. If we select labeled instances from an independent test set, we can thus estimate $P(y^\text{train}\el{j}=1\mid y^\text{test}\el{j}=1)$, the probability of an instance being labeled in the training set given it is known to be labeled in the test set. As a result from the PU assumption, $y^\text{test}\el{j}=1 \implies y^\ast\el{j}=1$, yielding the relationship in \autoref{eq:c estimation}, where the last step is implied by the random selection of the training samples.
+% %
+% \begin{multline}
+%     P(y^\text{train}\el{j}=1\mid y^\text{test}\el{j}=1) =\\
+%     = P(y^\text{train}\el{j}=1\mid y^\ast\el{j}=1) = \\
+%     = P(y\el{j}=1\mid y^\ast\el{j}=1) = c\el{j}
+%     \label{eq:c estimation}
+% \end{multline}
+% %
+% Thus, ideally, each probability estimate of a labeled test sample is an approximation of $c_j$. In our setting, we employ the out-of-bag sets to avoid overfitting effects in the probability estimation.
+% From the distribution of $c\el{j}$ estimates, we select the final $c_j^\ast$ by defining a small percentile $p$ such that $P(c_j>c_j^\ast)<p$, compensating for a possibly underconfident estimator.
+% %
+% Notice that the corrections are made in the direction of $c$ overestimates rather than underestimates. When imputation is at play, a higher $c$ estimate, leading to fewer added labels, is the conservative strategy.
+% 
+% %, unlike the TIcE technique~\cite{bekker2018estimating}
+% 
+% %Furthermore, for large ensembles, less accurate estimators tend to regress towards the mean, so higher values are more accurate ...
+% 
+% %To partially compensate for the intrinsic estimator error, we select a percentile $p$
+% 
+% %Similarly to the idea by \cite{elkan}, we estimate $c$ from held-out labeled samples. Specifically, we set each tree in a forest to be trained on a bootstrapped sample of the training set with half of the original number of instances, and the predicted probabilities of each tree for the positive labels not seen during training are taken as candidate estimates for $c$. Under the assumption that at least a small set of the test instances will be confidently labeled by the forest (the positive subset assumption~\cite{bekker2020learning}) and to mitigate calibration issues or possibly poor predictive performance, we take the $95$-th percentile of the $c$ candidates as the final estimate. While \cite{liu} suggests the usage of the maximum probability value found, we use the percentile to account for random fluctuations in the predictions at the expense of slightly increasing the chance of underestimating $c$.
+% %
+% %Still, overly confident out-of-bag probabilities of the cascade levels, in this scenario, would lead to more conservative imputation, directing $c$ towards larger values as intended.
+% 
+% % TODO: calibration could yield better estimates for c
+% 
+% % TODO why we changed this
+% 
+% %We utilize a slightly different alternative for label frequency estimation, consisting of exploring the relationship in \autoref{eq:c estimation}.
+% 
+% % \begin{equation}
+% %     P(s=1 | x) \le c \le 1
+% %     \label{eq:c estimation}
+% % \end{equation}
+
+
+\subsubsection{The strict label complement (SLC) mechanism}
+\label{sec:slc}
+
+%We identify three key limitations of the original LCForest~\cite{wang2020learning}: i) the number of imputed labels is allowed to exceed the defined upper bounds before imputation is stopped; ii) the upper bounds are overestimated; iii) the stopping criterion is often inefficient.
+
+We address each of the limitations of LCForest presented in \autoref{sec:lc} as follows:
+%i) ; ii) , and iii) we employ a different length control strategy. We now describe them in further detail.
+%
+\begin{enumerate}
+    \item \textbf{Overshooting:} we strictly disallow the $u_j$ upper bounds to be crossed. We select the best-ranked predictions to enforce the number of imputed labels in output $j$ to always be $u\el{j}$ at most;
+    \item \textbf{$u_j$ overestimation:} we use more conservative upper bound estimates for the number of missing labels. The technique is described in \autoref{sec:oob c estimation} and is designed to favor lower values of $u_j$;
+    \item \textbf{Insufficient stopping criterion:} we select the level with the best out-of-bag scores as a post-pruning strategy.%, even if imputation is still active.%We allow levels to continue being grown even after imputation is completely stopped, while also pruning before imputation termination if ... 
+\end{enumerate}
+
+% %, tightening its rules around label insertions. The modifications aim to address the limitations of the LC mechanism and to achieve more controllable imputation.
+
+% We keep the idea of estimating the frequency of missing labels $c\el{j}$ (\autoref{sec:oob c estimation}) for each output $j$ as the first step in the training procedure, yielding corresponding upper limits $u\el{j}$ for the total label count after imputation (\autoref{eq:estimated total labels}).
+% %
+% \begin{equation}
+%     u\el{j} = \left\lfloor \frac{\sum_i Y^0\el{ij}}{c\el{j}} \right\rfloor
+%     \label{eq:estimated total labels}
+% \end{equation}
+% %
+
+%%Our first modification is to employ the $c$ estimation technique described in \autoref{sec:oob c estimation}, designed to favor higher values of $c$. % and therefore result in lower label upper limits in comparison with the original TIcE.
+
+%%The second modification is to use the estimated $u$ values as \emph{hard} upper limits:
+%%we select the best ranked predictions to enforce the number of imputed labels in output $j$ to be $u\el{j}$ at most.
+
+%The original method, on the other side, imputes all predicted labels that cross the classification threshold, tests if $u_j$ has been crossed and stops the imputation if it has, keeping the excessive imputations.
+%, which is equivalent to defining a threshold $\theta$ such as in \autoref{eq:slc theta}.
+%
+%\begin{equation}
+%    \theta\el{j} = \texttt{max}(\theta^c\el{j} ,\; \theta^0)
+%    \label{eq:slc theta}
+%\end{equation}
+%%
+%where
+%
+% \begin{equation}
+%     \theta^c\el{j} = \texttt{sorted}(2 Y^\intercal\el{j} + \tilde Y^\intercal\el{j})\el{u\el{j}}
+% \end{equation}
+%
+%with $\texttt{sorted}(\mathbf{v})$ denoting the sorted elements of $\mathbf{v}$ from highest to lowest.% and $\theta_0$ being a user-defined lower bound for $\theta$, further controlling the stringency of the imputation.
+
+%%As in the original algorithm, if $u\el{j}$ is reached, SLC stops the imputation for this output, and the column $\tilde Y^\intercal\el{j}$ is conserved for the subsequent levels.
+%
+
+%%%%% TODO
+%Formally, a complement flag vector $f^l$ defined by \autoref{eq:complement flag}, with $f^0=\mathbf{1}$.
+%%
+%\begin{gather}
+%    %f_0 = \mathbf{1} \\
+%    f^{l+1}\el{j} = f^{l}\el{j} \wedge (\text{$u_j$ is reached})
+%    \label{eq:complement flag}
+%\end{gather}
+%%
+%The modified label matrix in each level $l$ is thus given by \autoref{eq:slc imputation}.
+%%
+%\begin{equation}
+%    y^{l+1}\el{j} =
+%        %Y_0\el{\cdot j}
+%        %\vee [f_l\el{j} \wedge (\tilde Y_l\el{\cdot j} > \theta_l\el{j}) ]
+%        \begin{cases}
+%            y^0\el{j} \vee (\tilde y^{l}\el{j} > \theta^l\el{j})
+%             & \text{if } f^l\el{j} = 1\\
+%            y^l\el{j}
+%             %& \text{if } f_l\el{j} = 0
+%             & \text{otherwise.}
+%        \end{cases}
+%    \label{eq:slc imputation}
+%\end{equation}
+
+We also release the requirement for unanimity in the imputer ensemble and instead use a conventional average probability between the $n_F$ forests (substituting \autoref{eq:lc imputation} with \autoref{eq:slc imputation}).
+%
+\begin{equation}
+    \hat Y^l = \left(\frac{1}{n_F}\sum_t\tilde Y^{l,t}\right) < \theta
+    \label{eq:slc imputation}    
+\end{equation}
+%
+
+We argue that the parameter $\theta$ is sufficient for controlling the imputer's tolerance. Finally, we use OOB probabilities as $\tilde Y^{l, t}$ rather than the original k-fold procedure.
+
+%TODO RFClassifier vs RFRegressor
+
+% TODO: two ways of reducing imputation over time
+% TODO: for higher drops, the amount of nodes in the trees is smaller, so OS features gain importance and overthrow them
+% TODO: composite forests or larger forests
+
+
+\subsubsection{Fluid label addition (FLA)}  % TODO
+% \subsubsection{Fluid label adjustment}
+\label{sec:fla}
+
+%Despite estimating upper limits for the number of missing labels, we notice that the imputer itself proposed by \cite{wang2020learning} does not take into account the predicted label frequency estimates, and therefore the probabilities $\tilde Y_l$ are always expected to be conservative with respect to the expected amount of missing labels.
+%despite conservative under their proposed containment measures, 
+%The amount of conservatism, that is, the fraction of missing labels that we expect to impute, is however dependent on the the specific values of the missing label frequency in conjunction with their overfitting containment measures, and thus not intuitive from the hyperparameter selection point of view. For different (unknown) frequencies of missing labels $c$, different numbers of levels would be expected to be necessary to impute all of the missing labels.
+% TODO: define this mathematically
+Our second imputation strategy, Fluid Label Addition (FLA), is more aggressive when more annotations are expected to be missing, but more conservative otherwise.
+%With the objective of exploring more transparent heuristics, we propose to leverage the estimated $c$ and the \emph{selected completely at random} assumption~\cite{elkan,bekker2020learning} to adjust the probabilities in $\tilde Y$ to account for the expected amount of missing labels.
+We achieve this by dividing the probabilities outputted by the imputer model by the estimated $c_j$ (\autoref{sec:oob c estimation}) and only then applying the classification threshold. After the division, the predicted probabilities then represent an approximation for $P(y^\ast\el{j}=1)$ rather than for $P(y\el{j}=1)$ (\autoref{eq:scar}). We can equivalently multiply the $\theta$ classification threshold by $c_j^l$ instead of dividing the probabilities, and the method is then defined by \autoref{eq:fla imputation}.
+%
+%to more transparent heuristics for label imputation, accounting for the expected amount of missing labels.
+%
+%
+\begin{equation}
+    \hat y^{l}_j = \tilde y^l_j < \theta \cdot c_j^l
+    % \theta^l\el{j} = c^l\el{j} \cdot \theta^0
+    \label{eq:fla imputation}
+\end{equation}
+%
+
+We estimate a $c_j^l$ in every layer for this strategy, and no upper limit is used for the number of imputed labels.
+We denote by $\tilde Y^l$ the average predicted probabilities across all forest imputers in level $l$. Again, we use out-of-bag probability estimates as $\tilde Y^l$ to mitigate overfitting.
+%In this strategy, $c$ estimation is performed in every layer $l$, so that the imputation is progressively restrained by the $c_l$ estimate becoming closer to $1$ across levels instead of the number of imputations reaching a fixed upper limit defined by a single initial $c$ estimate, as in the label complement proposals.
+
+% although allowed to change the labels every time, forests become increasingly confident and keep them
+
+%The user-defined parameter $\theta_0$, under ideal predicted probabilities and $c$ estimates, thus represents the minimum fraction of the imputed labels expected to be correct, i.e. the minimum expected precision of the imputation. Again, to mitigate the possibility of over-optimistic predictions, we obtain $\tilde Y$ from the out-of-bag subsets.% of each forest, averaging the estimates of all forests composing the imputer.
+
+%Since no stopping criterion for imputation is used case, we maintain $\theta_0=0.5$ so that all labels would ideally be imputed in the first layer, however being available to change throughout the cascade. To otherwise restrict the imputation on each level to the most confident predictions (although in a more consistent and predictable fashion), one could alternatively set $\theta_0$ to higher values.
+
+%To still restrict the imputation on each level to the most confident predictions (although in a more consistent and predictable fashion), we can set $\theta_0$ to higher values. We employ $\theta_0=0.9$ for the SCAR imputer in the present study.  % TODO
+
+%Our proposed strategy thus estimates $c$ in every layer before imputation, employing it to adjust the predicted probabilities $Y$ (or, equivalently, the threshold $theta$) as described by \autoref{eq:scar}.
+
+% TODO overfitting prevention: oob proba
+% TODO overfitting prevention: half samples
+% TODO overfitting prevention: different estimators for X and Y
+% TODO overfitting prevention: trimming
+
+
+\section{Experimental settings}
+In this section, we present our datasets, competitor methods, parameters employed, and evaluation measures.  
+\label{sec:experiments}
+%\section{Methodology}
+
+\subsection{Datasets}
+
+\begin{table}[htbp]
+    \scriptsize
+    \centering
+    \begin{tabular}{lcccr}
+        \toprule
+        \textbf{Dataset} & \textbf{Samples} & \textbf{Features} & \textbf{Labels} & \textbf{Density} \\
+        \midrule
+        VirusGO              & 207 & 749  & 3   & 0.33\\%2 8502 \\
+        VirusPseAAC          & 207 & 440  & 3   & 0.33\\%2 8502 \\
+        flags                & 194 & 19   & 6   & 0.54\\%2955 \\
+        % Gram\_positive       & 519 & 912  & 3   & 0.32\\%4342 \\
+        GrampositivePseAAC  & 519 & 440  & 3   & 0.32\\%4342 \\
+        CHD\_49              & 555 & 49   & 5   & 0.51\\%0270 \\
+        emotions             & 593 & 72   & 6   & 0.31\\%1411 \\
+        birds                & 645 & 260  & 9   & 0.086\\%305 \\
+        % genbase              & 662 & 1185 & 11 & 0.095\\%441 \\
+        Gram\_negative       & 1392 & 1717 & 6  & 0.17\\%1935 \\
+        PlantGO              & 978 & 3091  & 9  & 0.11\\%2588 \\
+        medical              & 978 & 1449 & 12 & 0.086\\%5 719 \\
+        scene                & 2407 & 294 & 6   & 0.18\\%7 8992 \\
+        yeast                & 2417 & 103 & 14  & 0.30\\%2648 \\
+        enron                & 1702 & 1001 & 25 & 0.13\\%2 5734 \\
+        % CAL500               & 502 & 68   & 103 & 0.23\\%4015 \\
+        % LLOG                 & 1460 & 75  & 1003 & 0.19\\%8 6407 \\
+        \bottomrule\\
+    \end{tabular}
+    
+    \caption{
+        Datasets overview. % The provided metadata are calculated after all label columns with less than 30 positive occurrences are dropped. The original datasets and corresponding references and descriptions can be found at \url{http://www.uco.es/kdis/mllresources/} and \url{https://itec.kuleuven-kulak.be/pattern-recognition-2021/}.
+    }
+    \label{tab:datasets}
+    % TODO: reference each?
+\end{table}
+
+We utilized a total of 13 publicly available multi-label datasets\footnote{\url{http://www.uco.es/kdis/mllresources/}}\footnote{\url{https://itec.kuleuven-kulak.be/pattern-recognition-2021/}} encompassing diverse domains such as text, biological data, sound, and imagery. We discarded all label columns with less than 30 positive occurrences. The resulting dimensions for each dataset are presented by \autoref{tab:datasets}.
+
+Similarly to~\cite{wang2020learning}, we have randomly masked (turning $1$s into $0$s) \{0\%, 30\%, 50\%, 70\%\} of the occurrences of each label in the training set prior to providing it to the model, resulting into 3 corrupted versions of each dataset. The frequencies are also denoted incomplete label rates (ILR)~\cite{wang2020learning}. %Importantly, no masking is performed on the test sets used for model evaluation.
+% TODO: maybe discuss calibration issues from utilizing sets with distinct densities
+%
+We use experiments without dropping any labels to validate the hypothesis that multi-label datasets are inherently weakly-supervised, and also to use them as references for comparison.
+
+
+
+%\subsection{Comparison methods}
+\subsection{Comparative analysis}
+
+\begin{table*}[tb]
+    \centering
+    \begin{tabular}{lrrrrr}
+        \toprule
+         Algorithm & Feature augmentation & Crossing-over & Length control & Label imputation & Reference \\
+        \midrule
+         RF+ET & - & - & Single layer & - & \cite{breiman2001random, geurts2006extremely} \\
+         gcForest & OS & No & First score drop & - & \cite{zhou2019deep} \\
+         LCForest & OS & No & Imputation limit & LC & \cite{wang2020learning} \\
+         CaFE &  TE & Yes & Best training score & - & \cite{nakano2022deep} \\
+         CaFE-OS &  TE and OS & Yes & Best training score & - & \cite{nakano2022deep} \\
+        \midrule
+         SLCForest &  OS & Yes & Best OOB score & SLC & Proposed\\
+         FLAForest &  OS & Yes & Best OOB score & FLA & Proposed \\
+         CaFE-SLC &  TE and OS & Yes & Best OOB score & SLC & Proposed \\
+         CaFE-FLA &  TE and OS & Yes & Best OOB score & FLA & Proposed \\
+        \bottomrule \\
+    \end{tabular}
+    \caption{Summary of the algorithms being compared in this work. OS refers to output space features, TE to tree-embeddings. OOB refers to out-of-bag estimates, while LC, SLC and FLA respectively mean Label Complement (\autoref{sec:lc}), Strict Label Complement (\autoref{sec:slc}) and Fluid Label Addition (\autoref{sec:slc}).}
+    \label{tab:alg summary}
+\end{table*}
+
+We compare our four proposed weakly-supervised cascade forests to four baseline algorithms from the literature and the current state-of-the-art LCForest (\autoref{sec:lc}) \cite{wang2020learning}, as summarized by \autoref{tab:alg summary}. RF+ET corresponds to the simple combination of a random forest~\cite{breiman2001random} and an ensemble of randomized trees~\cite{geurts2006extremely}, which outputs the average of both models' predicted label probabilities. RF+ET is equivalent, in our case, to the final estimator of a deep forest without any feature augmentation. 
+
+gcForest refers to the original cascade forest proposal by Zhou \cite{zhou2019deep} adding predicted probabilities in each layer as augmented features. We assume tabular format for the input features and thus do not employ the multi-grained scanning procedure the authors proposed for structured inputs.
+
+Since no unified denomination seems to exist in the literature, we suggest the acronym CaFE (Cascade Forest Embedders) to encompass the broad category of deep forests using tree-embedding techniques.
+%
+We then refer to the two algorithms from~\cite{nakano2022deep} as CaFE and CaFE-OS, employing solely tree-embeddings and tree-embeddings in conjunction with output space features, respectively.
+
+Baseline weak-label comparison methods, such as~\cite{sun2010multi, xu2013speedup}, were not analyzed since they were designed for transductive learning, whereas we focus on predictive learning. Additionally, traditional off-the-shelf multi-label methods, such as MlKNN~\cite{zhang2007ml}, Rakel~\cite{tsoumakas2007random} and DBPNN~\cite{hinton2006reducing}, have already been included as comparison methods in previous works~\cite{nakano2022deep, wang2020learning}. Their results were consistently worse with statistical significance, thus we have opted to not include them. 
+
+Our four proposals correspond to the combinations of our two imputation methods FLA (\autoref{sec:fla}) and SLC (\autoref{sec:slc}), with two feature augmentation methods: output space features alone, or output space in conjunction with tree-embeddings (\autoref{tab:alg summary}).
+
+%%%==============
+% As described in \autoref{sec:deep forests}, deep forest methods for weak-label learning rely mostly on two main components: i) feature augmentation and ii) label imputation.
+% 
+% To fully evaluate our proposed method, we have compared all possible combinations of feature augmentation and label imputation methods. These methods are listed below:
+%  
+% % FIXME
+% %\paragraph{\textit{(FIX THIS WITH A SUBSECTION OR STHM LATER)Feature augmentation methods}}
+% \vspace{1em}
+% 
+% \textbf{Feature augmentation methods:}
+% 
+% \begin{itemize}
+%     \item \textit{Output space features (OS):} The predicted probabilities of each label.
+%     \item \textit{Tree-embeddings (TE):} The embeddings generated using the procedure described in \autoref{sec:feature augmentation}.
+% \end{itemize}
+% 
+% %\paragraph{\textit{Label imputation} methods:}
+% \textbf{Label imputation methods:}
+% 
+% \begin{itemize}
+%     \item \textit{LC:} Label complement mechanism as proposed by \cite{wang2020learning} and described in \autoref{sec:lc}.
+%     \item \textit{SCAR:} Our proposed threshold adjustment strategy based on level-wise estimated frequencies of missing labels, detailed in \autoref{sec:fla}.
+% \end{itemize}
+% %
+% %Since deep forests may simultaneously employ multiple feature augmentation methods, we also explore the case where both the tree-embeddings and the output space features are generated by each level.
+% 
+% Hereafter, competitor methods will be described using their feature augmentation and label complement methods. The original cascade forest proposed by \cite{zhou2019deep} employing output samples and no imputation is labeled simply \texttt{OS}, while the current state-of-the-art by Wang et al.\cite{wang2020learning} which uses the label complement strategy (LCForest), is denoted by \texttt{LC-OS}. The deep forests based solely on tree-embeddings and on tree-embeddings in conjunction with output space features, as proposed by \cite{nakano2022deep}, are respectively represented as \texttt{TE} and \texttt{TE-OS}. The remaining combinations, proposed in the current study, are named through the same logic.
+% %
+% %For instance, LCForest, will be described as, $BLA BLA$, since it uses OS and LC. Similarly,  our proposed method, NAME OF OUR METHOD, would be represented as $SOMETHING SOMETHING$. In total, we are comparing our method against X variants. 
+% %
+% %The current state-of-the-art, LCForest, employs label complement (LC, Section X) and output space (OS) features.
+% We therefore compare five new variants of our proposed method (\texttt{TA-OS}, \texttt{TA-TE}, \texttt{TA-TE-OS}, \texttt{LC-TE} and \texttt{LC-TE-OS}) to the four aforementioned deep forest algorithms from the literature and a 
+% 
+% %(\texttt{OS}, \texttt{TE}, \texttt{TE-OS} and \texttt{LC-OS}).
+% 
+
+\subsection{Model parameters}
+
+Similarly to previous related work~\cite{zhou2019deep,wang2020learning,nakano2022deep}, we use a random forest~\cite{breiman2001random} in conjunction with an ensemble of randomized trees~\cite{geurts2006extremely} as the base estimator for all label imputers and feature augmentation procedures in the deep forests.
+%The use of diverse components is shown to improve overall predictive performance~\cite{breiman2001random,zhou2019deep}.
+Each of these forests was composed of 150 trees, with a minimum leaf size of 5 samples, and selecting, at each node, $\sqrt{n_f}$ from the total $n_f$ features. A maximum of 10 levels is set for all cascades.
+%
+We build each tree with half the initial number of samples received by the cascade, for all forests.
+This enables us to calculate validation scores using the out-of-bag sets that will be used by some of the models. This also works as a measure to prevent overfitting when generating OS features and tree-embeddings, analogously to cross-validation in \cite{zhou2019deep,nakano2022deep}.
+
+%To enable internal out-of-bag validation for cascade-pruning or early-stopping in some of the algorithms while keeping comparisons fair, we set, in all cascades, each tree to be grown on a subset of bootstrapped training instances with half the original size. This setting does not include LCForest's imputer, which is a central piece to their method and instead uses a 5-fold cross-validation scheme as described by the original authors~\cite{wang2020learning}. While a similar strategy is suggested by \cite{zhou2019deep} for internal validation (not for imputation or generating output space features) the authors also discuss using training scores, and we thus employ OOB estimates for gcForest's early-stopping instead of CV without representing a significant change to their proposal.
+We set the percentile $p$ for label frequency estimation (\autoref{sec:oob c estimation}) to 95\%, and we use $\theta=0.5$ for the base classification threshold of FLA (\autoref{sec:fla}) and SLC (\autoref{sec:slc}).
+
+
+\subsection{Evaluation}% measures}
+
+For each dataset, we report results using the average performance on 5-fold cross-validation with iterative stratification~\cite{sechidis2011stratification, szymanski2017network}. In the experiments where labels were masked, we use the masked training set to train the models but evaluate their performance on the unmasked test sets. We also use the masked training sets to calculate the validation scores used for length control.
+
+We use the micro average of five well-established metrics to evaluate our models: the area under the receiver-operating characteristic curve (AUROC), average precision (AP) score, Hamming distance, label ranking loss, and Matthews correlation coefficient (MCC)~\cite{xu2019survey, waegeman2019multi}.
+
+
+\section{Results and discussion}
+\label{sec:results}
+
+The results of the comparisons involving all models are presented in the graphs of \autoref{fig:model comparison}.
+
+For $ILR=30\%$ and $ILR=0\%$ (30\% or 0\% masking), SLCForest was the best-ranked model in all evaluation metrics that do not require establishing a classification threshold (ranking error, AUROC, AP). The same occurred for ranking error and $ILR=30\%$. Meanwhile, the original LCForest was either the worst or the second worst-performing model for these same three metrics in all label masking configurations. This indicates that SLC is a significant methodology improvement over the original LC.
+
+We also notice the simple RF+ET surpassed a considerable number of models on the threshold-independent metrics under higher masked-label fractions (50\% and 70\%). In fact, no model significantly outperformed RF+ET in these conditions.
+%
+% We attribute these results to a possible tendency of deep forests to overfit the training set when very few labeled instances are available, since shallower trees would be enough to encode all training data and the tree structure could theoretically be more easily represented in the augmented features it produces. If this represented structure is trivially associated with training labels, subsequent trees in the cascade would tend to merely copy their ascendants' outputs and propagating the overfitting process.
+%
+% this hypothesis could be tested analyzing feature importances
+% tree embedders should be more resilient
+%
+Nevertheless, RF+ET displays the highest inconsistency for these metrics, which is observable in the form of larger interquartile ranges that result in fewer statistically significant comparisons. Hence, despite providing remarkable results, the performance of RF+ET largely depends on the dataset. 
+
+%%This observation suggests that its performance is dependent on the specific nature of the problem under study, and discourages its use as a one-size-fits-all approach.
+%This observation indicates that its performance is highly dependent on the specific nature of the problem under study, and discourages its use as a one-size-fits-all approach.
+%
+%Still, CaFE-SLC and CaFE-FLA are the best ranked models for AUROC and AP with $c = 50\%$.
+
+% AP $c = 50\%$ not significant
+%They could be selected by cascade pruning
+
+LCForest, CaFE-SLC, and CaFE-FLA are the consistent and clear winners for the threshold-dependent metrics MCC and Hamming Loss under masked labels scenarios (30\%, 50\%, and 70\%).
+LCForest is significantly surpassed by the other two models in terms of MCC for $ILR=50\%$ and $ILR=70\%$ while significantly outperforming both for the Hamming loss under $ILR=70\%$.
+Therefore, our results suggest that CaFE-SLC and CaFE-FLA are preferable choices over LCForest. They show prominent superiority for threshold-independent metrics and highly competitive results for MCC and the Hamming loss.
+%
+% Interestingly, the MCC metric confidently places RF+ET and CaFE as the two worst performing models,
+
+The supervised models (RF+ET, CaFE, CaFE-OS, gcForest), where no imputation is performed, are the four worst-performing ones in all threshold-dependent scenarios with masked labels. Therefore, label imputation seems to be important for the selection of binary outputs. A possible explanation would be that imputing labels makes the label density of training sets closer to the density of the test set. This would be especially important in our scenarios, where these densities clearly differ.
+
+%When the specific binary outputs are not the final goal and a ranking-learning scenario is at play,
+Overall, the tree-embeddings seem to be more beneficial in more challenging scenarios where fewer annotations are available, while OS features seem to perform better when the data is more reliable.
+
+SLCForest seems to be the best option up until intermediate fractions of missing labels.
+This model resulted in the best performance even when no label masking was performed.
+Still, for $ILR=0\%$, FLAForest was the second-best model for AUROC, Hamming loss, and MCC.
+These results demonstrate that label imputation is also effective for the original multi-label tasks, without considering weak-labels. This suggests
+%i) that modifying the input data is an interesting strategy even if all positive annotations are reliable;
+that weak-labels could be present in the majority of benchmark multi-label problems.
+%For (i), this process could be similar to other techniques that introduce noise to the training data, such as dropout for neural networks or bootstrapping in decision forests.
+%These techniques are known to improve generalization in most of the scenarios.
+%by promoting diversity.
+%As for (ii), this suggests that
+As such, future studies could benefit from integrating imputation as an important step for multi-label tasks in general.
+%diversity ensemble
+
+%corroborates the hypothesis of weak-labels being often a fundamental part of multi-label problems.
+%In spite of that, its relatively worse performance on threshold-dependent metrics again reflects the threshold selection issues that may arise from the different label frequencies in the test set, a scenario where the weak-label-adapted tree-embedders of CaFE-SLC and CaFE-FLA and the more aggressive imputation of the original LCForest instead prove to prevail.
+
+%Imputation thus seems to have a clear impact on the calibration of the models produced.
+%produce better calibrated models
+
+% CAFE-OS had the most dramatic drop in perf with missing
+
+
+%not significant plots
+% 
+
+% original datasets could still have some missing data
+
+%CAFE-SLC/FLA best for ranking tasks, LCForest bin classf
+% ====================================================
+%The scar imputation using only the output space as features (scar\_os) and the deep forest employing tree embeddings alone prevailed as the best-ranked methods in terms of ROC AUC and average precision, respectively. While te is shown to significantly outperform all remaining models for AP, the best ROC AUC scores could not be resolved among scar\_os, te\_os and te. The asserted effectiveness of tree embeddings corroborates the findings by [nakano2022]. Meanwhile, the original label complement mechanism proposed by [wang] shows no apparent improvements in our setting, which considers a greater number of datasets (14 versus originally 4). Nevertheless, our modified version of [wang]’s method seems to recover its potential for better predictive performance.
+%
+%
+%Different results are obtained for varying degrees of positive label-masking, simulating proportions of missing labels (\autoref{fig:best_oob_level}). For a 50\% masking, both AP and ROC AUC place scar\_te\_os as the top ranked model, validating its theorized advantage in scenarios of imperfect data. While for AP it significantly outshines all remaining estimators, for ROC AUC statistical difference could not be confirmed and scar\_te\_os shares the podium with te and rf+et. %Similarly to the results by [nakano2022], the competitiveness of the simple rf+et %TODO
+%
+%When 70\% of positive labels are masked, the best ranked models are scar\_os, scar\_te\_os and, surprisingly, the remarkably simple rf+et approach. In this case, the top 6 models according to ROC AUC could not be statistically distinguished, suggesting that further experimentation could be needed.
+%
+%Even more interestingly, in the most radical label masking scenario we analyzed (90\%), the simple rf+tf confidently outperformed all the remaining approaches. We suggest that the small number of labels could imply a greater degree of bias in each layer towards the training set, which would be amplified by subsequent layers and degrade the cascade’s performance. Furthermore, the higher overfitting could impact the internal score estimators utilized for the deep forest trimming, resulting in the selection of a sub-optimal number of layers to compose the final model.
+%
+%To assess the impact of level-selection in the observed performance, we again compare all models, but manually selecting the cascade level with the highest scores in the test set for all estimators (\autoref{fig:best_level}). Although not representative of real-world performance of the models, this analysis gauges the predictive potential of each deep forest under an ideal level-selection procedure, motivating the development of better trimming algorithms in the future.  
+%
+%Strikingly, te\_os is shown to significantly outperform all the remaining models for both AP and AUROC in almost all the label masking configurations we explored, the only exception being the 90\% fraction. And even for the 90\% masks, while TE was the top-ranked model in AP and AUROC, te\_os could not be statistically distinguished from the first, leaving open the possibility of its superiority under further investigation. These results highlight the potential of tree-embeddings in deep forest models for multi-label classification in general, both in weak-labels scenarios and in traditional supervised contexts, while clearly stating the importance of accurate internal validation for cascade-trimming. In the future, we suggest the usage of nested cross-validation or held-out validation sets as promising strategies to be investigated.
+%
+%Furthermore, the results also seem to indicate that the advantage of inter-level label imputation stems from a higher correlation between the internal level-wise scores with the scores on the test set, and not from an overall superiority. \autoref{fig:scores_per_level} corroborates this hypothesis by showing a direct comparison between internal and external scores at each level, as well as a correlation analysis once more confirming this influence of label imputation (TODO).
+%
+%We believe the main source of over-optimistic internal scores is the output space features passed along each level by the OS models. If one level manifests a tendency to overfit the training set, its outputs would be perceived by the next level as highly correlating with the training labels, and thus would be extensively selected as the feature at each tree node during the tree-growing procedure.
+%%
+%Most importantly, appending the last layer’s outputs to the feature matrix could constitute a route for information leakage between the OOB sets, given that trees would learn to simply mimic the structure of the overfitted trees in the last layer, explaining the observed over-optimistic OOB scores. While the same would apply to the tree embeddings, given that the tree structure information is still passed along, we hypothesize it would be a much smaller impact, since the PCA-transformed embeddings are much less directly correlated to the training labels. This explanation matches the observed behavior shown by \autoref{fig:scores_per_level_te}, with a more attenuated overfitting effect in comparison to OS models. Furthermore, it can also be seen from \autoref{fig:scores_per_level_te} that fewer positive labels tend to yield higher overfitting for tree-embeddings, which would be explained by fewer labels generating simpler tree structures that would more easily be decoded by downstream trees and thus leak through the OOB sets.
+%
+%Regarding the superiority of cascades employing label imputation, a related explanation is possible: since each level is trained in a slightly different dataset, the overfitted output space of the last layer should be less correlated with the received training labels, discouraging the trees from simply mimicking their predecessors. 
+%
+%Even so, the significant superiority of scar in comparison to the original label complement mechanism is not clear from the analysis of \autoref{fig:scores_per_level}, given that both display similar internal scoring behavior, prompting us to more specifically investigate the label imputation at each level.
+%%
+%From \autoref{fig:imputation}, we deduce that the label complement mechanism results in much more aggressive imputation, indeed guessing correctly more positive labels than scar at the expense of also generating much more false positives. We argue that the same information leakage that supposedly jeopardizes OS models can generate the effect of earlier stopping with the scar imputation strategy, since the overfitting of OOB sets would result in an overestimation of the label frequency c. Since LC does not update the expected c between levels, the final predictive performance is under higher influence of the model’s initial inference of c. Thus, it seems that more conservative imputation is more likely to be beneficial in the scenarios under study.
+
+\begin{figure*}[htbp]
+    \centering
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{no_drop/all_datasets/boxplots/test_roc_auc_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop30/all_datasets/boxplots/test_roc_auc_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop50/all_datasets/boxplots/test_roc_auc_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop70/all_datasets/boxplots/test_roc_auc_micro.pdf}
+    }
+    
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{no_drop/all_datasets/boxplots/test_average_precision_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop30/all_datasets/boxplots/test_average_precision_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop50/all_datasets/boxplots/test_average_precision_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop70/all_datasets/boxplots/test_average_precision_micro.pdf}
+    }
+    
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{no_drop/all_datasets/boxplots/test_neg_label_ranking_loss.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop30/all_datasets/boxplots/test_neg_label_ranking_loss.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop50/all_datasets/boxplots/test_neg_label_ranking_loss.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop70/all_datasets/boxplots/test_neg_label_ranking_loss.pdf}
+    }
+    
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{no_drop/all_datasets/boxplots/test_neg_hamming_loss_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop30/all_datasets/boxplots/test_neg_hamming_loss_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop50/all_datasets/boxplots/test_neg_hamming_loss_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop70/all_datasets/boxplots/test_neg_hamming_loss_micro.pdf}
+    }
+ 
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{no_drop/all_datasets/boxplots/test_matthews_corrcoef_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop30/all_datasets/boxplots/test_matthews_corrcoef_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop50/all_datasets/boxplots/test_matthews_corrcoef_micro.pdf}
+    }
+    \subfloat{
+        \includegraphics[width=.23\textwidth]{drop70/all_datasets/boxplots/test_matthews_corrcoef_micro.pdf}
+    }
+    \caption{Comparison of percentile ranks of the analyzed estimators under several performance metrics and incomplete label ratios (ILR). The scores were ranked across estimators within each of the 5 cross-validation folds of each dataset. The ranks were then averaged across folds for each dataset and the resulting average percentile ranks are shown as boxplots, with each point referring to a dataset. Each point thus represents, for a particular dataset, the percentage of other estimators outperformed by the selected estimator. The average percentage across datasets is then plotted in white annotated boxes. 
+    The omnibus p-value resulting from a Friedman test is displayed above each plot, while crossbars connecting dots over each box indicate groups of estimators that could not be statistically distinguished ($p > 0.05$) under a Wilcoxon Signed Rank test followed by Benjamini-Hochberg procedure. The multiple-tests correction procedure included all the significant comparisons omitted in each plot.}
+    \label{fig:model comparison}
+\end{figure*}
+
+
+
+% \begin{figure*}[tb]
+%     \centering
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__no_drop__best_level__all_datasets__boxplots__test_roc_auc_micro.pdf}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__no_drop__best_level__all_datasets__boxplots__test_average_precision_micro.pdf}
+%     \end{subfigure}
+%     
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__drop50__best_level__all_datasets__boxplots__test_roc_auc_micro.pdf}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__drop50__best_level__all_datasets__boxplots__test_average_precision_micro.pdf}
+%     \end{subfigure}
+%     
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__drop70__best_level__all_datasets__boxplots__test_roc_auc_micro.pdf}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__drop70__best_level__all_datasets__boxplots__test_average_precision_micro.pdf}
+%     \end{subfigure}
+%     
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__drop90__best_level__all_datasets__boxplots__test_roc_auc_micro.pdf}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.8\columnwidth]{figures/statistical_comparisons__drop90__best_level__all_datasets__boxplots__test_average_precision_micro.pdf}
+%     \end{subfigure}
+%     \caption{Comparison of percentile ranks of average precision and AUC ROC for the estimators under analysis, trimming the number of levels to the best score in the test set. The scores were ranked across estimators for each of the 5 cross-validation folds and each dataset. The ranks were then averaged across folds for each dataset and the resulting average percentile ranks are shown as boxplots, with each point representing a dataset. The omnibus p-value resulting from a Friedman test is displayed above each plot, while crossbars connecting dots over each box indicate groups of estimators that could not be statistically distinguished ($p > 0.05$) under a Wilcoxon Signed Rank test followed by Benjamini-Hochberg procedure.}
+%     \label{fig:best_level}
+% \end{figure*}
+
+
+%\begin{figure*}
+%$    \begin{subfigure}{}
+%$        \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_lc_tree_embedder_proba__50__roc_auc_micro.png}
+%$    \end{subfigure}
+%$    \begin{subfigure}{}
+%$        \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_scar_tree_embedder_proba__50__roc_auc_micro.png}
+%$    \end{subfigure}
+%$    \begin{subfigure}{}
+%$        \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_tree_embedder_proba__50__roc_auc_micro.png}
+%$    \end{subfigure}
+%$    \begin{subfigure}{}
+%$        \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_tree_embedder__50__roc_auc_micro.png}
+%$    \end{subfigure}
+%$    \caption{Analysis of the performance profile across cascade levels. The scores were ranked across levels for each of the 5 cross-validation folds of each dataset, after which the percentile ranks of each level were averaged across folds. Each plotted point thus corresponds to a dataset, and we compare the external score on the test set to internal scores on the masked training set and on out-of-bag sets for each tree in the ensemble.}
+%$    \label{fig:scores_per_level}
+%\end{figure*}
+
+
+% \begin{figure*}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_tree_embedder__roc_auc_micro.png}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_tree_embedder__50__roc_auc_micro.png}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_tree_embedder__70__roc_auc_micro.png}
+%     \end{subfigure}
+%     \begin{subfigure}{}
+%         \includegraphics[width=.22\textwidth]{figures/level_comparison__cascade_tree_embedder__90__roc_auc_micro.png}
+%     \end{subfigure}
+%     \caption{Analysis of the performance profile across cascade levels. The scores were ranked across levels for each of the 5 cross-validation folds of each dataset, after which the percentile ranks of each level were averaged across folds. Each plotted point thus corresponds to a dataset, and we compare the external score on the test set to internal scores on the masked training set and on out-of-bag sets for each tree in the ensemble.}
+%     \label{fig:scores_per_level_te}
+% \end{figure*}
+
+
+%\begin{figure*}
+%        \includegraphics[width=.32\textwidth]{imputation_plots__cascade_lc_tree_embedder_proba__50.png}
+%        \includegraphics[width=.32\textwidth]{imputation_plots__cascade_lc_tree_embedder_proba__70.png}
+%        \includegraphics[width=.32\textwidth]{imputation_plots__cascade_lc_tree_embedder_proba__90.png}
+%        
+%        \includegraphics[width=.32\textwidth]{imputation_plots__cascade_scar_tree_embedder_proba__50.png}
+%        \includegraphics[width=.32\textwidth]{imputation_plots__cascade_scar_tree_embedder_proba__70.png}
+%        \includegraphics[width=.32\textwidth]{imputation_plots__cascade_scar_tree_embedder_proba__90.png}
+%    \caption{Label imputation profile. By considering only the negatives and the positive labels that were masked from the training set, we calculate the amount or true positives and false positives, normalizing by the total number of masked positives in each dataset. The scores were averaged over the 5 cross-validation folds and over the the 14 datasets. The dashed lines represent the expected number of missing labels according to the model. For the scar imputer, this number is updated for each level, accounting for the last level's imputed labels.}
+%    \label{fig:imputation}
+%\end{figure*}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented four variations of weakly-supervised deep forests. %, named SLCForest, FLAForest, CaFE-SLC and CaFE-FLA. %, combining two different imputation and feature augmentation strategies.
+%
+To the best of our knowledge, our results demonstrate for the first time the effectiveness of tree-embeddings-based cascades in conjunction with label imputation for weak-label learning problems.
+%
+Our results indicate that tree-embeddings combined with label imputation are especially beneficial when more label annotations are missing. When more annotations are available, output space features without tree-embeddings seem to be the better option.
+%
+Tree-embeddings were also superior for metrics that require a classification threshold, the MCC, and Hamming loss.
+When the threshold is not needed (AUROC, AP, ranking loss), SLCForest was the best model overall.
+
+We also show that label imputation is beneficial even if the original multi-label datasets, without masking positive annotations, were used. This suggests that future studies on multi-label problems should consider imputation even if the problems were expected to be supervised.
+
+%models against state-of-the-art algorithms for threshold-dependent classification metrics under missing labels conditions. SLCForest also resulted in noteworthy threshold-independent scores, being the consistent highest-ranked model for lower rates of missing labels (0\% and 30\%).
+%
+%%SLCForest is shown to confidently outperform its predecessor LCForest under threshold-independent evaluation metrics, showing the best overall results for these metrics when at least half the labels are present. For 
+%
+%%other label frequency estimation techniques
+%
+%%In future work, we would like to explore further methods for 
+%
+In future work, we would also like to investigate the removal of wrong positive annotations, in a similar fashion to partial multi-label learning \cite{xie2018partial}. Lastly, we would also like to adapt our method to hierarchical multi-label classification, where the correlation among outputs is pre-established by an underlying hierarchy, since these datasets are inherently weakly-supervised \cite{nakano2019machine}. 
+
+
+% conference papers do not normally have an appendix
+
+\section*{Acknowledgments}
+
+The authors would like to thank FWO, 1235924N, and FAPESP, grant number 2022/02981-8. This study was financed in part by the Coordenação de
+Aperfeiçoamento de Pessoal de Nível Superior - Brasil (CAPES) - Finance Code 001. 
+
+\section*{Data and code availability}
+
+The datasets used in this work and the necessary code to reproduce our results are both made available at \url{https://itec.kuleuven-kulak.be/supporting-material/} and \url{https://github.com/pedroilidio/ijcnn2024}.
+
+\iffalse  % Annonymity
+    % use section* for acknowledgment
+    \ifCLASSOPTIONcompsoc
+      % The Computer Society usually uses the plural form
+      \section*{Acknowledgments}
+    \else
+      % regular IEEE prefers the singular form
+      \section*{Acknowledgment}
+      To be added upon acceptance
+    \fi
+    
+%    The authors would like to thank FWO and FAPESP, grant numbers: 1235924N, ......
+\fi
+
+
+
+
+% trigger a \newpage just before the given reference
+% number - used to balance the columns on the last page
+% adjust value as needed - may need to be readjusted if
+% the document is modified later
+%\IEEEtriggeratref{8}
+% The "triggered" command can be changed if desired:
+%\IEEEtriggercmd{\enlargethispage{-5in}}
+
+% references section
+
+% can use a bibliography generated by BibTeX as a .bbl file
+% BibTeX documentation can be easily obtained at:
+% http://mirror.ctan.org/biblio/bibtex/contrib/doc/
+% The IEEEtran BibTeX style support page is at:
+% http://www.michaelshell.org/tex/ieeetran/bibtex/
+\bibliographystyle{IEEEtran}
+% argument is your BibTeX string definitions and bibliography database(s)
+%\bibliography{IEEEabrv,main}
+\bibliography{bibliography}
+%\bibliography{ijcnn2024}
+%
+
+
+% that's all folks
+\end{document}
+
+
